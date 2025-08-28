@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
-import { InfoIcon } from './icons';
 import { useAccount, useSendTransaction } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
@@ -17,25 +16,13 @@ const ActionButton: React.FC<{
     onClick: () => void;
 }> = ({ buttonKey, config, onClick }) => {
     return (
-        <div className="relative group">
-            <button
-                onClick={onClick}
-                style={{ backgroundColor: config.color, color: '#FFFFFF' }}
-                className="w-full text-white font-bold py-4 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-200 flex items-center justify-center"
-            >
-                <span className="capitalize">{buttonKey}</span>
-            </button>
-            {config.description && (
-                 <div className="absolute top-2 right-2 cursor-pointer group-hover:opacity-100 opacity-70 transition-opacity">
-                     <div className="relative group/tooltip">
-                         <InfoIcon className="w-5 h-5 text-white/80" />
-                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-xs bg-gray-800 text-white text-sm rounded-md p-2 opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
-                             {config.description}
-                         </div>
-                     </div>
-                 </div>
-            )}
-        </div>
+        <button
+            onClick={onClick}
+            style={{ backgroundColor: config.color, color: '#FFFFFF' }}
+            className="w-full text-white font-bold py-4 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-200 flex items-center justify-center"
+        >
+            <span className="capitalize">{buttonKey}</span>
+        </button>
     );
 };
 
