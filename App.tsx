@@ -1,9 +1,9 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
 import { SettingsView } from './components/SettingsView';
 import { Notification, NotificationData } from './components/Notification';
-import { DEFAULT_SETTINGS } from './constants';
 import type { Settings, VisibleButtons } from './types';
 
 import '@rainbow-me/rainbowkit/styles.css';
@@ -26,63 +26,109 @@ const config = getDefaultConfig({
 
 const queryClient = new QueryClient();
 
-
 const AppContent: React.FC = () => {
   const [view, setView] = useState<'main' | 'settings'>('main');
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<Settings>({});
   const [visibleButtons, setVisibleButtons] = useState<VisibleButtons>({});
   const [notification, setNotification] = useState<NotificationData | null>(null);
-  
-  // Load settings from localStorage on initial render
-  useEffect(() => {
-    try {
-      const savedSettings = localStorage.getItem('chainsawSettings');
-      const savedVisibility = localStorage.getItem('chainsawVisibility');
-      
-      const loadedSettings = savedSettings ? JSON.parse(savedSettings) : DEFAULT_SETTINGS;
-      setSettings(loadedSettings);
-
-      const loadedVisibility = savedVisibility ? JSON.parse(savedVisibility) : {};
-      const initialVisibility: VisibleButtons = {};
-      Object.keys(loadedSettings).forEach(key => {
-        initialVisibility[key] = loadedVisibility[key] !== false;
-      });
-      setVisibleButtons(initialVisibility);
-
-    } catch (error) {
-      console.error("Failed to load settings from localStorage", error);
-      setSettings(DEFAULT_SETTINGS);
-      const initialVisibility: VisibleButtons = {};
-      Object.keys(DEFAULT_SETTINGS).forEach(key => {
-        initialVisibility[key] = true;
-      });
-      setVisibleButtons(initialVisibility);
-    }
-  }, []);
-
-  // Save settings to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem('chainsawSettings', JSON.stringify(settings));
-    } catch (error) {
-      console.error("Failed to save settings to localStorage", error);
-    }
-  }, [settings]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('chainsawVisibility', JSON.stringify(visibleButtons));
-    } catch (error) {
-      console.error("Failed to save visibility to localStorage", error);
-    }
-  }, [visibleButtons]);
-
+  const [isLoading, setIsLoading] = useState(true);
 
   const showNotification = useCallback((message: string, type: NotificationData['type'], duration: number = 5000) => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), duration);
   }, []);
 
+  const fetchAndSetDefaultSettings = useCallback(async (isInitialLoad = false) => {
+    if (!isInitialLoad) {
+      if (!window.confirm("Are you sure you want to reset all settings to default? This action cannot be undone.")) {
+        return;
+      }
+    }
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/settings.txt');
+      if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
+      const defaultSettings = await response.json();
+      
+      setSettings(defaultSettings);
+      
+      const newVisibility: VisibleButtons = {};
+      Object.keys(defaultSettings).forEach(key => {
+        newVisibility[key] = true;
+      });
+      setVisibleButtons(newVisibility);
+      
+      if (!isInitialLoad) {
+        showNotification('Settings have been reset to default.', 'success');
+      }
+    } catch (error) {
+      console.error("Failed to fetch or apply default settings:", error);
+      showNotification('Failed to fetch default settings. Please check your internet connection.', 'error');
+    } finally {
+        if (isInitialLoad) {
+            setIsLoading(false);
+        }
+    }
+  }, [showNotification]);
+
+
+  useEffect(() => {
+    const loadSettings = async () => {
+        setIsLoading(true);
+        try {
+            const savedSettings = localStorage.getItem('chainsawSettings');
+            if (savedSettings && savedSettings !== '{}') {
+                const loadedSettings = JSON.parse(savedSettings);
+                setSettings(loadedSettings);
+
+                const savedVisibility = localStorage.getItem('chainsawVisibility');
+                const loadedVisibility = savedVisibility ? JSON.parse(savedVisibility) : {};
+                const initialVisibility: VisibleButtons = {};
+                Object.keys(loadedSettings).forEach(key => {
+                    initialVisibility[key] = loadedVisibility[key] !== false;
+                });
+                setVisibleButtons(initialVisibility);
+            } else {
+                await fetchAndSetDefaultSettings(true);
+            }
+        } catch (error) {
+            console.error("Failed to load settings from localStorage, fetching default.", error);
+            await fetchAndSetDefaultSettings(true);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    loadSettings();
+  }, [fetchAndSetDefaultSettings]);
+
+  useEffect(() => {
+    if (!isLoading && Object.keys(settings).length > 0) {
+        try {
+            localStorage.setItem('chainsawSettings', JSON.stringify(settings));
+        } catch (error) {
+            console.error("Failed to save settings to localStorage", error);
+        }
+    }
+  }, [settings, isLoading]);
+
+  useEffect(() => {
+    if (!isLoading) {
+        try {
+            localStorage.setItem('chainsawVisibility', JSON.stringify(visibleButtons));
+        } catch (error) {
+            console.error("Failed to save visibility to localStorage", error);
+        }
+    }
+  }, [visibleButtons, isLoading]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+        <div className="text-xl font-semibold animate-pulse">Loading configuration...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-900 text-white min-h-screen font-sans">
@@ -105,6 +151,7 @@ const AppContent: React.FC = () => {
             visibleButtons={visibleButtons}
             setVisibleButtons={setVisibleButtons}
             showNotification={showNotification}
+            onReset={fetchAndSetDefaultSettings}
           />
         )}
       </main>
@@ -112,7 +159,6 @@ const AppContent: React.FC = () => {
     </div>
   );
 };
-
 
 const App: React.FC = () => {
   return (
@@ -125,6 +171,5 @@ const App: React.FC = () => {
     </WagmiProvider>
   );
 }
-
 
 export default App;

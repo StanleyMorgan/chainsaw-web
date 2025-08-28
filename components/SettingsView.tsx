@@ -9,9 +9,10 @@ interface SettingsViewProps {
   visibleButtons: VisibleButtons;
   setVisibleButtons: (visible: VisibleButtons) => void;
   showNotification: (message: string, type: NotificationData['type']) => void;
+  onReset: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification, onReset }) => {
   const [jsonText, setJsonText] = useState('');
 
   useEffect(() => {
@@ -77,12 +78,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
             className="w-full h-96 p-4 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             spellCheck="false"
           />
-          <button
-            onClick={handleSave}
-            className="mt-4 w-full bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold text-lg"
-          >
-            Save Configuration
-          </button>
+          <div className="mt-4 flex flex-col sm:flex-row gap-4">
+            <button
+              onClick={onReset}
+              className="w-full sm:w-auto bg-red-600 text-white px-6 py-3 rounded-md hover:bg-red-700 transition-colors duration-200 font-semibold"
+            >
+              Reset to Default
+            </button>
+            <button
+              onClick={handleSave}
+              className="w-full sm:flex-1 bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold text-lg order-first sm:order-last"
+            >
+              Save Configuration
+            </button>
+          </div>
         </div>
       </div>
     </div>
