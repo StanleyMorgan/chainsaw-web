@@ -4,7 +4,7 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { WalletIcon, DisconnectIcon } from './icons';
 
 export const CustomConnectButton: React.FC = () => {
-    const { address, chainId, isConnected } = useAccount();
+    const { address, isConnected } = useAccount();
     const { disconnect } = useDisconnect();
     const { openConnectModal } = useConnectModal();
     const [isDropdownOpen, setDropdownOpen] = useState(false);
@@ -38,13 +38,9 @@ export const CustomConnectButton: React.FC = () => {
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setDropdownOpen(prev => !prev)}
-                className="flex items-center space-x-2 sm:space-x-3 bg-gray-700 text-white pl-3 pr-2 sm:px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors duration-200"
+                className="flex items-center space-x-3 bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors duration-200"
             >
-                <div className="text-sm text-right">
-                    <span className="font-mono">{formattedAddress}</span>
-                    {/* Hide Chain ID on small screens to save space */}
-                    <span className="hidden sm:block text-xs text-gray-400">Chain: {chainId}</span>
-                </div>
+                <span className="font-mono text-sm">{formattedAddress}</span>
                 <WalletIcon className="w-6 h-6 flex-shrink-0" />
             </button>
             {isDropdownOpen && (
