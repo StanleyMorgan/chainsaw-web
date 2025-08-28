@@ -8,7 +8,7 @@ import type { Settings, VisibleButtons } from './types';
 
 import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { WagmiProvider } from 'wagmi';
+import { WagmiProvider, useAccount } from 'wagmi';
 import { mainnet, optimism, base, polygon, arbitrum } from 'wagmi/chains';
 // Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -27,6 +27,7 @@ const config = getDefaultConfig({
 const queryClient = new QueryClient();
 
 const AppContent: React.FC = () => {
+  const { isConnected } = useAccount();
   const [view, setView] = useState<'main' | 'settings'>('main');
   const [settings, setSettings] = useState<Settings>({});
   const [visibleButtons, setVisibleButtons] = useState<VisibleButtons>({});
@@ -37,6 +38,13 @@ const AppContent: React.FC = () => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), duration);
   }, []);
+
+  useEffect(() => {
+    if (!isConnected && view === 'settings') {
+      setView('main');
+      showNotification('Connect your wallet to access Settings.', 'info');
+    }
+  }, [isConnected, view, showNotification]);
 
   const fetchAndSetDefaultSettings = useCallback(async (isInitialLoad = false) => {
     if (!isInitialLoad) {
@@ -144,7 +152,7 @@ const AppContent: React.FC = () => {
             showNotification={showNotification}
           />
         )}
-        {view === 'settings' && (
+        {view === 'settings' && isConnected && (
           <SettingsView
             settings={settings}
             setSettings={setSettings}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAccount } from 'wagmi';
 import { HomeIcon, CogIcon } from './icons';
 import { CustomConnectButton } from './CustomConnectButton';
 
@@ -12,23 +13,33 @@ const NavButton: React.FC<{
   children: React.ReactNode;
   isCurrent: boolean;
   onClick: () => void;
-}> = ({ label, children, isCurrent, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`flex items-center px-4 py-2 rounded-md transition-colors duration-200 ${
-      isCurrent
-        ? 'bg-blue-600 text-white'
-        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-    }`}
-    aria-label={label}
-  >
-    {children}
-    <span className="ml-2 hidden sm:inline">{label}</span>
-  </button>
+  disabled?: boolean;
+}> = ({ label, children, isCurrent, onClick, disabled }) => (
+  <div title={disabled ? "Connect your wallet to access settings" : ""}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex items-center w-full px-4 py-2 rounded-md transition-colors duration-200 ${
+        isCurrent
+          ? 'bg-blue-600 text-white'
+          : 'text-gray-300'
+      } ${
+        disabled
+          ? 'opacity-50 cursor-not-allowed'
+          : 'hover:bg-gray-700 hover:text-white'
+      }`}
+      aria-label={label}
+    >
+      {children}
+      <span className="ml-2 hidden sm:inline">{label}</span>
+    </button>
+  </div>
 );
 
 
 export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
+  const { isConnected } = useAccount();
+
   return (
     <header className="bg-gray-800 shadow-lg p-4 flex justify-between items-center sticky top-0 z-10">
       <div className="flex items-center">
@@ -38,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
           <NavButton label="Main" isCurrent={currentView === 'main'} onClick={() => setView('main')}>
             <HomeIcon />
           </NavButton>
-          <NavButton label="Settings" isCurrent={currentView === 'settings'} onClick={() => setView('settings')}>
+          <NavButton label="Settings" isCurrent={currentView === 'settings'} onClick={() => setView('settings')} disabled={!isConnected}>
             <CogIcon />
           </NavButton>
         </nav>
