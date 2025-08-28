@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
 import { InfoIcon } from './icons';
@@ -42,6 +42,7 @@ const ActionButton: React.FC<{
 export const MainView: React.FC<MainViewProps> = ({ settings, visibleButtons, showNotification }) => {
   const { address, chainId, isConnected, connector } = useAccount();
   const { sendTransaction } = useSendTransaction();
+  const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
 
   const handleTransaction = async (config: ButtonConfig) => {
     if (!isConnected || !address) {
@@ -115,18 +116,38 @@ export const MainView: React.FC<MainViewProps> = ({ settings, visibleButtons, sh
   return (
     <div>
       {visibleButtonKeys.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {visibleButtonKeys.map((key) => {
-            const config = settings[key];
-            return (
-              <ActionButton
-                key={key}
-                buttonKey={key}
-                config={config}
-                onClick={() => handleTransaction(config)}
-              />
-            );
-          })}
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Description Panel */}
+          <div className="lg:w-1/3 lg:max-w-sm bg-gray-800 p-6 rounded-lg self-start lg:sticky lg:top-24 order-last lg:order-first">
+            <h3 className="text-lg font-bold mb-4 text-gray-200 border-b border-gray-700 pb-2">
+              Action Description
+            </h3>
+            <div className="h-48 overflow-y-auto text-gray-300 font-mono text-sm">
+                <p className="whitespace-pre-wrap">{hoveredDescription}</p>
+            </div>
+          </div>
+
+          {/* Buttons Grid */}
+          <div 
+            className="lg:w-2/3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 order-first lg:order-last"
+            onMouseLeave={() => setHoveredDescription('Hover over a button to see its description.')}
+          >
+            {visibleButtonKeys.map((key) => {
+              const config = settings[key];
+              return (
+                <div
+                  key={key}
+                  onMouseEnter={() => setHoveredDescription(config.description || 'No description available for this action.')}
+                >
+                  <ActionButton
+                    buttonKey={key}
+                    config={config}
+                    onClick={() => handleTransaction(config)}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <div className="text-center p-8 bg-gray-800 rounded-lg mt-10">

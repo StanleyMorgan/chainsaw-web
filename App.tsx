@@ -10,7 +10,8 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
 import { mainnet, optimism, base, polygon, arbitrum } from 'wagmi/chains';
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
+// Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // This is a public demo project ID from WalletConnect.
 // For a production application, you should get your own project ID from https://cloud.walletconnect.com/
