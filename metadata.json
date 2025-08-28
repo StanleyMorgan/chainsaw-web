@@ -1,0 +1,5 @@
+{
+  "name": "Chainsaw",
+  "description": "A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.",
+  "requestFramePermissions": []
+}
