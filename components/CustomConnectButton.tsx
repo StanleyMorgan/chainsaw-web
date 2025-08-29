@@ -34,8 +34,8 @@ export const CustomConnectButton: React.FC = () => {
                 className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200"
                 aria-label="Connect Wallet"
             >
-                <PowerIcon className="w-5 h-5 mr-2" />
-                <span>Connect Wallet</span>
+                <PowerIcon className="w-5 h-5 sm:mr-2" />
+                <span className="hidden sm:inline">Connect Wallet</span>
             </button>
         );
     }
@@ -51,13 +51,14 @@ export const CustomConnectButton: React.FC = () => {
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setDropdownOpen(prev => !prev)}
-                className="flex items-center justify-center bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors duration-200"
+                className="flex items-center justify-center bg-gray-700 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors duration-200"
                 aria-haspopup="true"
                 aria-expanded={isDropdownOpen}
                 aria-label="Wallet options"
             >
-                <span className="font-mono text-sm">{formattedAddress}</span>
-                <ChevronDownIcon className="w-5 h-5 ml-2 text-gray-400" />
+                <PowerIcon className="w-5 h-5 block sm:hidden" />
+                <span className="hidden sm:inline font-mono text-sm">{formattedAddress}</span>
+                <ChevronDownIcon className="w-5 h-5 ml-2 text-gray-400 hidden sm:inline-flex" />
             </button>
             {isDropdownOpen && (
                 <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-1 z-20 border border-gray-700">
