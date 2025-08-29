@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -25,7 +26,7 @@ const projectId = 'e89c620c02327429219e133e506689d0';
 const config = getDefaultConfig({
   appName: 'Chainsaw',
   appDescription: 'A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.',
-  appUrl: 'https://chainsaw.app',
+  appUrl: window.location.origin,
   appIcon: 'https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png',
   projectId: projectId,
   chains: [mainnet, optimism, base, polygon, arbitrum],
