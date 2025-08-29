@@ -10,59 +10,51 @@ interface AddButtonModalProps {
 }
 
 export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose, onSave, showNotification }) => {
-  const [buttonKey, setButtonKey] = useState('');
-  const [jsonConfig, setJsonConfig] = useState(`{
-  "address": "0x...",
-  "color": "#6B2A9D",
-  "data": "0x...",
-  "gas": "0x14F60",
-  "id": 57073,
-  "value": "0x0",
-  "description": "A short description of this action."
-}`);
+  const [jsonConfig, setJsonConfig] = useState('');
 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    if (!buttonKey.trim()) {
-      showNotification('Button name cannot be empty.', 'error');
-      return;
-    }
-
     try {
-      const config = JSON.parse(jsonConfig);
-      // Basic validation for required keys
+      if (!jsonConfig.trim()) {
+        throw new Error('JSON configuration cannot be empty.');
+      }
+      const parsedJson = JSON.parse(jsonConfig);
+
+      if (typeof parsedJson !== 'object' || parsedJson === null || Array.isArray(parsedJson)) {
+        throw new Error('Configuration must be a JSON object.');
+      }
+
+      const keys = Object.keys(parsedJson);
+      if (keys.length !== 1) {
+        throw new Error('JSON must contain exactly one top-level key for the button name.');
+      }
+      
+      const buttonKey = keys[0];
+      const config = parsedJson[buttonKey];
+
+      if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+          throw new Error('The button configuration under the key must be an object.');
+      }
+
       const requiredKeys = ['address', 'color', 'data', 'gas', 'id', 'value'];
       for (const key of requiredKeys) {
         if (!(key in config)) {
           throw new Error(`Missing required key in JSON: "${key}"`);
         }
       }
-      onSave(buttonKey.trim(), config);
+      onSave(buttonKey, config);
       onClose();
     } catch (error: any) {
-      showNotification(`Invalid JSON configuration: ${error.message}`, 'error');
+      const message = error instanceof SyntaxError ? 'Invalid JSON format.' : error.message;
+      showNotification(`Invalid configuration: ${message}`, 'error');
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4">
-        <h2 className="text-2xl font-bold text-white">Add / Edit Button</h2>
-        
-        <div>
-          <label htmlFor="buttonKey" className="block text-sm font-medium text-gray-300 mb-1">
-            Button Name (e.g., "ink_gm")
-          </label>
-          <input
-            id="buttonKey"
-            type="text"
-            value={buttonKey}
-            onChange={(e) => setButtonKey(e.target.value)}
-            placeholder="Enter a unique name"
-            className="w-full p-2 bg-gray-900 text-gray-200 rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
-        </div>
+        <h2 className="text-2xl font-bold text-white">Add New Button</h2>
         
         <div>
             <label htmlFor="jsonConfig" className="block text-sm font-medium text-gray-300 mb-1">
@@ -74,6 +66,17 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
                 onChange={(e) => setJsonConfig(e.target.value)}
                 className="w-full h-64 p-4 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 spellCheck="false"
+                placeholder={`{
+  "my_button_name": {
+    "address": "0x...",
+    "color": "#6B2A9D",
+    "data": "0x...",
+    "gas": "0x14F60",
+    "id": 1,
+    "value": "0x0",
+    "description": "A short description."
+  }
+}`}
             />
         </div>
 

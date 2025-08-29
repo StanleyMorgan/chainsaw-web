@@ -115,15 +115,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
   return (
     <div>
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-110 z-20"
-        title="Add or Edit Button"
-        aria-label="Add or Edit Button"
-      >
-        <PlusIcon className="w-8 h-8" />
-      </button>
-
       <AddButtonModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -141,6 +132,14 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             <div className="h-48 overflow-y-auto text-gray-300 font-mono text-sm">
                 <p className="whitespace-pre-wrap">{hoveredDescription}</p>
             </div>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="mt-4 w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold flex items-center justify-center"
+              aria-label="Add New Button"
+            >
+              <PlusIcon className="w-5 h-5 mr-2" />
+              Add Button
+            </button>
           </div>
 
           {/* Buttons Grid */}
