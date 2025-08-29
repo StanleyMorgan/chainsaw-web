@@ -13,7 +13,7 @@ interface MainViewProps {
   visibleButtons: VisibleButtons;
   setVisibleButtons: (visibleButtons: VisibleButtons) => void;
   buttonOrder: string[];
-  setButtonOrder: (order: string[]) => void;
+  onReorder: (draggedKey: string, dropKey: string) => void;
   showNotification: (message: string, type: NotificationData['type']) => void;
 }
 
@@ -33,7 +33,7 @@ const ActionButton: React.FC<{
     );
 };
 
-export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, setButtonOrder, showNotification }) => {
+export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, onReorder, showNotification }) => {
   const { address, chainId, isConnected, connector } = useAccount();
   const { sendTransaction } = useSendTransaction();
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
@@ -55,14 +55,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     const draggedKey = draggedItemKey.current;
 
     if (draggedKey && draggedKey !== dropKey) {
-      const currentOrder = [...buttonOrder];
-      const draggedIndex = currentOrder.indexOf(draggedKey);
-      const dropIndex = currentOrder.indexOf(dropKey);
-      
-      const [removed] = currentOrder.splice(draggedIndex, 1);
-      currentOrder.splice(dropIndex, 0, removed);
-      
-      setButtonOrder(currentOrder);
+      onReorder(draggedKey, dropKey);
     }
   };
 
@@ -73,13 +66,9 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
 
   const handleSaveButton = (key: string, config: ButtonConfig) => {
-    const isNewButton = !(key in settings);
     const newSettings = { ...settings, [key]: config };
     setSettings(newSettings);
     setVisibleButtons({ ...visibleButtons, [key]: true });
-    if (isNewButton) {
-      setButtonOrder([...buttonOrder, key]);
-    }
     showNotification(`Button "${key}" saved successfully!`, 'success');
   };
 

@@ -8,12 +8,11 @@ interface SettingsViewProps {
   setSettings: (settings: Settings) => void;
   visibleButtons: VisibleButtons;
   setVisibleButtons: (visible: VisibleButtons) => void;
-  setButtonOrder: (order: string[]) => void;
   showNotification: (message: string, type: NotificationData['type']) => void;
   onReset: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, setButtonOrder, showNotification, onReset }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification, onReset }) => {
   const [jsonText, setJsonText] = useState('');
 
   useEffect(() => {
@@ -27,7 +26,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
         throw new Error("Invalid JSON format. Must be an object.");
       }
       setSettings(newSettings);
-      setButtonOrder(Object.keys(newSettings));
       
       const newVisibility: VisibleButtons = {};
       Object.keys(newSettings).forEach(key => {
