@@ -51,14 +51,16 @@ const AppContent: React.FC = () => {
 
   const handleSettingsChange = useCallback((newSettings: Settings) => {
     setSettings(newSettings);
-    // When settings change, ensure visibility state is aligned.
-    const newVisibility: VisibleButtons = {};
-    Object.keys(newSettings).forEach(key => {
+    // Use functional update to avoid dependency on visibleButtons, preventing re-creation of this callback.
+    setVisibleButtons(currentVisibility => {
+      const newVisibility: VisibleButtons = {};
+      Object.keys(newSettings).forEach(key => {
         // Keep existing visibility if available, otherwise default to true
-        newVisibility[key] = visibleButtons[key] !== false;
+        newVisibility[key] = currentVisibility[key] !== false;
+      });
+      return newVisibility;
     });
-    setVisibleButtons(newVisibility);
-  }, [visibleButtons]);
+  }, []);
 
   const handleReorder = (draggedKey: string, dropKey: string) => {
     const keys = Object.keys(settings);
@@ -99,9 +101,7 @@ const AppContent: React.FC = () => {
       console.error("Failed to fetch or apply default settings:", error);
       showNotification('Failed to fetch default settings. Please check your internet connection.', 'error');
     } finally {
-        if (isInitialLoad) {
-            setIsLoading(false);
-        }
+        setIsLoading(false); // Ensure loading is always set to false
     }
   }, [showNotification, handleSettingsChange]);
 
