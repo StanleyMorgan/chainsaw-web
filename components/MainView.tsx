@@ -124,23 +124,28 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
       {visibleButtonKeys.length > 0 ? (
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Description Panel */}
-          <div className="lg:w-1/3 lg:max-w-sm bg-gray-800 p-6 rounded-lg self-start lg:sticky lg:top-24 order-last lg:order-first">
-            <h3 className="text-lg font-bold mb-4 text-gray-200 border-b border-gray-700 pb-2">
-              Action Description
-            </h3>
-            <div className="h-48 overflow-y-auto text-gray-300 font-mono text-sm">
-                <p className="whitespace-pre-wrap">{hoveredDescription}</p>
+          {/* Left Column */}
+          <div className="lg:w-1/3 lg:max-w-sm flex flex-col gap-4 order-last lg:order-first">
+            {/* Description Panel */}
+            <div className="bg-gray-800 p-6 rounded-lg self-start lg:sticky lg:top-24 w-full">
+              <h3 className="text-lg font-bold mb-4 text-gray-200 border-b border-gray-700 pb-2">
+                Action Description
+              </h3>
+              <div className="h-48 overflow-y-auto text-gray-300 font-mono text-sm">
+                  <p className="whitespace-pre-wrap">{hoveredDescription}</p>
+              </div>
             </div>
+
             <button
               onClick={() => setIsModalOpen(true)}
-              className="mt-4 w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold flex items-center justify-center"
+              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold flex items-center justify-center"
               aria-label="Add New Button"
             >
               <PlusIcon className="w-5 h-5 mr-2" />
               Add Button
             </button>
           </div>
+
 
           {/* Buttons Grid */}
           <div 
@@ -165,9 +170,17 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
           </div>
         </div>
       ) : (
-        <div className="text-center p-8 bg-gray-800 rounded-lg mt-10">
+        <div className="text-center p-8 bg-gray-800 rounded-lg mt-10 max-w-md mx-auto">
           <h2 className="text-xl font-semibold mb-2">No Buttons Configured</h2>
-          <p className="text-gray-400">Go to the Settings page to configure your action buttons, or use the '+' button to add one.</p>
+          <p className="text-gray-400 mb-6">Go to the Settings page to configure your action buttons, or click below to add your first one.</p>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="mt-4 inline-flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold"
+            aria-label="Add New Button"
+          >
+            <PlusIcon className="w-5 h-5 mr-2" />
+            Add First Button
+          </button>
         </div>
       )}
     </div>
