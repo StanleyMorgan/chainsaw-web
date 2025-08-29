@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -10,7 +11,8 @@ import type { Settings, VisibleButtons } from './types';
 import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiProvider, useAccount } from 'wagmi';
-import { mainnet, optimism, base, polygon, arbitrum } from 'wagmi/chains';
+// Fix: The chains are now exported from '@wagmi/core/chains' instead of 'wagmi/chains'.
+import { mainnet, optimism, base, polygon, arbitrum } from '@wagmi/core/chains';
 // Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
 // FIX: Split the import for QueryClient to resolve a module resolution error, importing it directly from @tanstack/query-core.
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -22,6 +24,9 @@ const projectId = 'e89c620c02327429219e133e506689d0';
 
 const config = getDefaultConfig({
   appName: 'Chainsaw',
+  appDescription: 'A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.',
+  appUrl: 'https://chainsaw.app',
+  appIcon: 'https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png',
   projectId: projectId,
   chains: [mainnet, optimism, base, polygon, arbitrum],
   ssr: false, // If your dApp uses server side rendering (SSR)
