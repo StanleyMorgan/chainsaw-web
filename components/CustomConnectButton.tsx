@@ -42,6 +42,11 @@ export const CustomConnectButton: React.FC = () => {
 
     const formattedAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
 
+    const handleDisconnect = () => {
+        disconnect();
+        setDropdownOpen(false);
+    };
+
     return (
         <div className="relative" ref={dropdownRef}>
             <button
@@ -57,9 +62,10 @@ export const CustomConnectButton: React.FC = () => {
             {isDropdownOpen && (
                 <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-1 z-20 border border-gray-700">
                     <button
-                        onClick={() => {
-                            disconnect();
-                            setDropdownOpen(false);
+                        onClick={handleDisconnect}
+                        onTouchEnd={(e) => {
+                            e.preventDefault();
+                            handleDisconnect();
                         }}
                         className="w-full flex items-center px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
                     >
