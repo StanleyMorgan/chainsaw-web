@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
-import { WalletIcon, DisconnectIcon } from './icons';
+import { PowerIcon, DisconnectIcon } from './icons';
 
 export const CustomConnectButton: React.FC = () => {
     const { address, isConnected } = useAccount();
@@ -27,7 +28,7 @@ export const CustomConnectButton: React.FC = () => {
                 className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200"
                 aria-label="Connect Wallet"
             >
-                <WalletIcon className="w-6 h-6" />
+                <PowerIcon className="w-6 h-6" />
                 <span className="hidden sm:inline ml-2">Connect Wallet</span>
             </button>
         );
@@ -43,7 +44,7 @@ export const CustomConnectButton: React.FC = () => {
                 aria-label="Wallet options"
             >
                 <span className="font-mono text-sm hidden sm:inline">{formattedAddress}</span>
-                <WalletIcon className="w-6 h-6 flex-shrink-0 sm:ml-3" />
+                <PowerIcon className="w-6 h-6 flex-shrink-0 sm:ml-3" />
             </button>
             {isDropdownOpen && (
                 <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-1 z-20 border border-gray-700">
