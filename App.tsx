@@ -12,8 +12,8 @@ import type { Settings, VisibleButtons } from './types';
 import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiProvider, useAccount } from 'wagmi';
-// Fix: The chains are now exported from '@wagmi/core/chains' instead of 'wagmi/chains'.
-import { mainnet, optimism, base, polygon, arbitrum } from '@wagmi/core/chains';
+// Fix: The chains are now exported from 'wagmi/chains' which is the correct path for this version.
+import { mainnet, optimism, base, polygon, arbitrum } from 'wagmi/chains';
 // Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
 // FIX: Split the import for QueryClient to resolve a module resolution error, importing it directly from @tanstack/query-core.
 import { QueryClientProvider } from '@tanstack/react-query';
