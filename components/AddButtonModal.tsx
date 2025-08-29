@@ -19,7 +19,23 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
       if (!jsonConfig.trim()) {
         throw new Error('JSON configuration cannot be empty.');
       }
-      const parsedJson = JSON.parse(jsonConfig);
+      
+      let textToParse = jsonConfig.trim();
+
+      // If the input is a property snippet (e.g., `"key": { ... },`), wrap it to make it a valid object.
+      if (!textToParse.startsWith('{')) {
+          // Remove trailing comma if it exists on the snippet
+          if (textToParse.endsWith(',')) {
+              textToParse = textToParse.slice(0, -1);
+          }
+          textToParse = `{${textToParse}}`;
+      }
+
+      // Remove trailing commas from the entire JSON string to make it valid for JSON.parse()
+      // This handles cases like { "a": 1, } or [ "b", ]
+      const cleanedJson = textToParse.replace(/,(?=\s*[}\]])/g, '');
+
+      const parsedJson = JSON.parse(cleanedJson);
 
       if (typeof parsedJson !== 'object' || parsedJson === null || Array.isArray(parsedJson)) {
         throw new Error('Configuration must be a JSON object.');
