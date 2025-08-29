@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
 import { useAccount, useSendTransaction } from 'wagmi';
@@ -12,6 +12,8 @@ interface MainViewProps {
   setSettings: (settings: Settings) => void;
   visibleButtons: VisibleButtons;
   setVisibleButtons: (visibleButtons: VisibleButtons) => void;
+  buttonOrder: string[];
+  setButtonOrder: (order: string[]) => void;
   showNotification: (message: string, type: NotificationData['type']) => void;
 }
 
@@ -31,16 +33,53 @@ const ActionButton: React.FC<{
     );
 };
 
-export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification }) => {
+export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, setButtonOrder, showNotification }) => {
   const { address, chainId, isConnected, connector } = useAccount();
   const { sendTransaction } = useSendTransaction();
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const draggedItemKey = useRef<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, key: string) => {
+    draggedItemKey.current = key;
+    e.currentTarget.style.opacity = '0.5';
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); // This is necessary to allow dropping
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, dropKey: string) => {
+    e.preventDefault();
+    const draggedKey = draggedItemKey.current;
+
+    if (draggedKey && draggedKey !== dropKey) {
+      const currentOrder = [...buttonOrder];
+      const draggedIndex = currentOrder.indexOf(draggedKey);
+      const dropIndex = currentOrder.indexOf(dropKey);
+      
+      const [removed] = currentOrder.splice(draggedIndex, 1);
+      currentOrder.splice(dropIndex, 0, removed);
+      
+      setButtonOrder(currentOrder);
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    e.currentTarget.style.opacity = '1';
+    draggedItemKey.current = null;
+  };
+
+
   const handleSaveButton = (key: string, config: ButtonConfig) => {
+    const isNewButton = !(key in settings);
     const newSettings = { ...settings, [key]: config };
     setSettings(newSettings);
     setVisibleButtons({ ...visibleButtons, [key]: true });
+    if (isNewButton) {
+      setButtonOrder([...buttonOrder, key]);
+    }
     showNotification(`Button "${key}" saved successfully!`, 'success');
   };
 
@@ -101,7 +140,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     }
   };
 
-  const visibleButtonKeys = Object.keys(settings).filter(key => visibleButtons[key] !== false);
+  const orderedVisibleKeys = buttonOrder.filter(key => visibleButtons[key] !== false);
 
   if (!isConnected) {
     return (
@@ -122,7 +161,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         showNotification={showNotification}
       />
 
-      {visibleButtonKeys.length > 0 ? (
+      {orderedVisibleKeys.length > 0 ? (
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Left Column */}
           <div className="lg:w-1/3 lg:max-w-sm flex flex-col gap-4 order-last lg:order-first">
@@ -152,12 +191,18 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             className="lg:w-2/3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 order-first lg:order-last"
             onMouseLeave={() => setHoveredDescription('Hover over a button to see its description.')}
           >
-            {visibleButtonKeys.map((key) => {
+            {orderedVisibleKeys.map((key) => {
               const config = settings[key];
               return (
                 <div
                   key={key}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, key)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, key)}
+                  onDragEnd={handleDragEnd}
                   onMouseEnter={() => setHoveredDescription(config.description || 'No description available for this action.')}
+                  className="cursor-move transition-opacity duration-200"
                 >
                   <ActionButton
                     buttonKey={key}

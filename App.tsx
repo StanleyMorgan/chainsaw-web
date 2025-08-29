@@ -34,6 +34,7 @@ const AppContent: React.FC = () => {
   const [view, setView] = useState<'main' | 'settings'>('main');
   const [settings, setSettings] = useState<Settings>({});
   const [visibleButtons, setVisibleButtons] = useState<VisibleButtons>({});
+  const [buttonOrder, setButtonOrder] = useState<string[]>([]);
   const [notification, setNotification] = useState<NotificationData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -63,6 +64,7 @@ const AppContent: React.FC = () => {
       const defaultSettings = await response.json();
       
       setSettings(defaultSettings);
+      setButtonOrder(Object.keys(defaultSettings));
       
       const newVisibility: VisibleButtons = {};
       Object.keys(defaultSettings).forEach(key => {
@@ -100,6 +102,15 @@ const AppContent: React.FC = () => {
                     initialVisibility[key] = loadedVisibility[key] !== false;
                 });
                 setVisibleButtons(initialVisibility);
+
+                const savedOrder = localStorage.getItem('chainsawButtonOrder');
+                const loadedOrder = savedOrder ? JSON.parse(savedOrder) : Object.keys(loadedSettings);
+                // Filter out any keys from the order that are no longer in settings
+                const validOrder = loadedOrder.filter((key: string) => key in loadedSettings);
+                // Add any new keys from settings that are not in the order
+                const newKeys = Object.keys(loadedSettings).filter(key => !validOrder.includes(key));
+                setButtonOrder([...validOrder, ...newKeys]);
+
             } else {
                 await fetchAndSetDefaultSettings(true);
             }
@@ -132,6 +143,16 @@ const AppContent: React.FC = () => {
         }
     }
   }, [visibleButtons, isLoading]);
+  
+  useEffect(() => {
+    if (!isLoading && buttonOrder.length > 0) {
+        try {
+            localStorage.setItem('chainsawButtonOrder', JSON.stringify(buttonOrder));
+        } catch (error) {
+            console.error("Failed to save button order to localStorage", error);
+        }
+    }
+  }, [buttonOrder, isLoading]);
 
   if (isLoading) {
     return (
@@ -154,6 +175,8 @@ const AppContent: React.FC = () => {
             setSettings={setSettings}
             visibleButtons={visibleButtons}
             setVisibleButtons={setVisibleButtons}
+            buttonOrder={buttonOrder}
+            setButtonOrder={setButtonOrder}
             showNotification={showNotification}
           />
         )}
@@ -163,6 +186,7 @@ const AppContent: React.FC = () => {
             setSettings={setSettings}
             visibleButtons={visibleButtons}
             setVisibleButtons={setVisibleButtons}
+            setButtonOrder={setButtonOrder}
             showNotification={showNotification}
             onReset={fetchAndSetDefaultSettings}
           />
