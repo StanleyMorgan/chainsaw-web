@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -147,8 +148,10 @@ const AppContent: React.FC = () => {
       <main className="p-4 sm:p-6 md:p-8">
         {view === 'main' && (
           <MainView 
-            settings={settings} 
-            visibleButtons={visibleButtons} 
+            settings={settings}
+            setSettings={setSettings}
+            visibleButtons={visibleButtons}
+            setVisibleButtons={setVisibleButtons}
             showNotification={showNotification}
           />
         )}

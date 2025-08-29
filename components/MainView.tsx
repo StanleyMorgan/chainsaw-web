@@ -1,12 +1,17 @@
+
 import React, { useState } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
 import { useAccount, useSendTransaction } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { AddButtonModal } from './AddButtonModal';
+import { PlusIcon } from './icons';
 
 interface MainViewProps {
   settings: Settings;
+  setSettings: (settings: Settings) => void;
   visibleButtons: VisibleButtons;
+  setVisibleButtons: (visibleButtons: VisibleButtons) => void;
   showNotification: (message: string, type: NotificationData['type']) => void;
 }
 
@@ -26,10 +31,18 @@ const ActionButton: React.FC<{
     );
 };
 
-export const MainView: React.FC<MainViewProps> = ({ settings, visibleButtons, showNotification }) => {
+export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification }) => {
   const { address, chainId, isConnected, connector } = useAccount();
   const { sendTransaction } = useSendTransaction();
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleSaveButton = (key: string, config: ButtonConfig) => {
+    const newSettings = { ...settings, [key]: config };
+    setSettings(newSettings);
+    setVisibleButtons({ ...visibleButtons, [key]: true });
+    showNotification(`Button "${key}" saved successfully!`, 'success');
+  };
 
   const handleTransaction = async (config: ButtonConfig) => {
     if (!isConnected || !address) {
@@ -102,6 +115,22 @@ export const MainView: React.FC<MainViewProps> = ({ settings, visibleButtons, sh
 
   return (
     <div>
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-110 z-20"
+        title="Add or Edit Button"
+        aria-label="Add or Edit Button"
+      >
+        <PlusIcon className="w-8 h-8" />
+      </button>
+
+      <AddButtonModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveButton}
+        showNotification={showNotification}
+      />
+
       {visibleButtonKeys.length > 0 ? (
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Description Panel */}
@@ -139,7 +168,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, visibleButtons, sh
       ) : (
         <div className="text-center p-8 bg-gray-800 rounded-lg mt-10">
           <h2 className="text-xl font-semibold mb-2">No Buttons Configured</h2>
-          <p className="text-gray-400">Go to the Settings page to configure your action buttons.</p>
+          <p className="text-gray-400">Go to the Settings page to configure your action buttons, or use the '+' button to add one.</p>
         </div>
       )}
     </div>
