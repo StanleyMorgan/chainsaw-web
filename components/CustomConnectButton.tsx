@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
-import { PowerIcon, DisconnectIcon } from './icons';
+import { PowerIcon, DisconnectIcon, ChevronDownIcon } from './icons';
 
 export const CustomConnectButton: React.FC = () => {
     const { address, isConnected } = useAccount();
@@ -12,13 +12,19 @@ export const CustomConnectButton: React.FC = () => {
     const dropdownRef = useRef<HTMLDivElement>(null);
     
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
+        const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setDropdownOpen(false);
             }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+
+        document.addEventListener('mousedown', handleOutsideClick);
+        document.addEventListener('touchstart', handleOutsideClick);
+
+        return () => {
+            document.removeEventListener('mousedown', handleOutsideClick);
+            document.removeEventListener('touchstart', handleOutsideClick);
+        };
     }, []);
 
     if (!isConnected || !address) {
@@ -28,8 +34,8 @@ export const CustomConnectButton: React.FC = () => {
                 className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200"
                 aria-label="Connect Wallet"
             >
-                <PowerIcon className="w-6 h-6 sm:hidden" />
-                <span className="hidden sm:inline">Connect Wallet</span>
+                <PowerIcon className="w-5 h-5 mr-2" />
+                <span>Connect Wallet</span>
             </button>
         );
     }
@@ -41,10 +47,12 @@ export const CustomConnectButton: React.FC = () => {
             <button
                 onClick={() => setDropdownOpen(prev => !prev)}
                 className="flex items-center justify-center bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors duration-200"
+                aria-haspopup="true"
+                aria-expanded={isDropdownOpen}
                 aria-label="Wallet options"
             >
-                <span className="font-mono text-sm hidden sm:inline">{formattedAddress}</span>
-                <PowerIcon className="w-6 h-6 sm:hidden" />
+                <span className="font-mono text-sm">{formattedAddress}</span>
+                <ChevronDownIcon className="w-5 h-5 ml-2 text-gray-400" />
             </button>
             {isDropdownOpen && (
                 <div className="absolute top-full right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-1 z-20 border border-gray-700">
