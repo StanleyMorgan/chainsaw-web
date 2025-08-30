@@ -43,7 +43,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, setView }) => {
   return (
     <header className="bg-gray-800 shadow-lg p-4 flex justify-between items-center sticky top-0 z-10">
       <div className="flex items-center">
-        <img src="/icons/icon48.png" alt="Chainsaw Logo" className="h-8 w-8 mr-3" />
+        <img src="icons/icon48.png" alt="Chainsaw Logo" className="h-8 w-8 mr-3" />
         <h1 className="text-xl md:text-2xl font-bold text-white mr-4">Chainsaw</h1>
         <nav className="flex space-x-2">
           <NavButton label="Main" isCurrent={currentView === 'main'} onClick={() => setView('main')}>
