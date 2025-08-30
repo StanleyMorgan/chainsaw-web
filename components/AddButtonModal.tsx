@@ -1,18 +1,50 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { NotificationData } from './Notification';
+import type { Settings } from '../types';
+import { DocumentDuplicateIcon } from './icons';
 
 interface AddButtonModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (key: string, config: any) => void;
   showNotification: (message: string, type: NotificationData['type']) => void;
+  settings: Settings;
 }
 
-export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose, onSave, showNotification }) => {
+export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose, onSave, showNotification, settings }) => {
   const [jsonConfig, setJsonConfig] = useState('');
+  const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
+  const templateDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+        if (templateDropdownRef.current && !templateDropdownRef.current.contains(event.target as Node)) {
+            setTemplateDropdownOpen(false);
+        }
+    };
+    if (isOpen && isTemplateDropdownOpen) {
+        document.addEventListener('mousedown', handleOutsideClick);
+        document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+        document.removeEventListener('mousedown', handleOutsideClick);
+        document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isOpen, isTemplateDropdownOpen]);
 
   if (!isOpen) return null;
+
+  const handleSelectTemplate = (key: string) => {
+    const templateConfig = settings[key];
+    if (templateConfig) {
+        const newJson = {
+            "new_button_name": { ...templateConfig }
+        };
+        setJsonConfig(JSON.stringify(newJson, null, 2));
+    }
+    setTemplateDropdownOpen(false);
+  };
 
   const handleSave = () => {
     try {
@@ -22,19 +54,14 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
       
       let textToParse = jsonConfig.trim();
 
-      // If the input is a property snippet (e.g., `"key": { ... },`), wrap it to make it a valid object.
       if (!textToParse.startsWith('{')) {
-          // Remove trailing comma if it exists on the snippet
           if (textToParse.endsWith(',')) {
               textToParse = textToParse.slice(0, -1);
           }
           textToParse = `{${textToParse}}`;
       }
 
-      // Remove trailing commas from the entire JSON string to make it valid for JSON.parse()
-      // This handles cases like { "a": 1, } or [ "b", ]
       const cleanedJson = textToParse.replace(/,(?=\s*[}\]])/g, '');
-
       const parsedJson = JSON.parse(cleanedJson);
 
       if (typeof parsedJson !== 'object' || parsedJson === null || Array.isArray(parsedJson)) {
@@ -96,19 +123,46 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
             />
         </div>
 
-        <div className="flex justify-end gap-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Save Button
-          </button>
+        <div className="flex items-center justify-between">
+          <div className="relative" ref={templateDropdownRef}>
+            <button
+              onClick={() => setTemplateDropdownOpen(prev => !prev)}
+              className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              aria-haspopup="true"
+              aria-expanded={isTemplateDropdownOpen}
+            >
+              <DocumentDuplicateIcon className="w-5 h-5 mr-2" />
+              Template
+            </button>
+            {isTemplateDropdownOpen && Object.keys(settings).length > 0 && (
+              <div className="absolute bottom-full left-0 mb-2 w-48 bg-gray-700 rounded-lg shadow-lg py-1 z-30 border border-gray-600 max-h-48 overflow-y-auto">
+                {Object.keys(settings).map(key => (
+                  <button
+                    key={key}
+                    onClick={() => handleSelectTemplate(key)}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
+                  >
+                    {key}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              Save Button
+            </button>
+          </div>
         </div>
       </div>
     </div>

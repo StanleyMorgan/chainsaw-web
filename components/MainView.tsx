@@ -148,6 +148,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveButton}
         showNotification={showNotification}
+        settings={settings}
       />
 
       {orderedVisibleKeys.length > 0 ? (
