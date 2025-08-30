@@ -1,8 +1,6 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import type { NotificationData } from './Notification';
 import type { Settings } from '../types';
-import { DocumentDuplicateIcon } from './icons';
 
 interface AddButtonModalProps {
   isOpen: boolean;
@@ -39,7 +37,7 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
     const templateConfig = settings[key];
     if (templateConfig) {
         const newJson = {
-            "new_button_name": { ...templateConfig }
+            [key]: { ...templateConfig }
         };
         setJsonConfig(JSON.stringify(newJson, null, 2));
     }
@@ -127,11 +125,10 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
           <div className="relative" ref={templateDropdownRef}>
             <button
               onClick={() => setTemplateDropdownOpen(prev => !prev)}
-              className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
               aria-haspopup="true"
               aria-expanded={isTemplateDropdownOpen}
             >
-              <DocumentDuplicateIcon className="w-5 h-5 mr-2" />
               Template
             </button>
             {isTemplateDropdownOpen && Object.keys(settings).length > 0 && (
