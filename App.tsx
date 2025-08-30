@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -18,7 +19,7 @@ import { QueryClient } from '@tanstack/query-core';
 
 // This is a public demo project ID from WalletConnect.
 // For a production application, you should get your own project ID from https://cloud.walletconnect.com/
-const projectId = 'e89c620c02327429219e133e506689d0';
+const projectId = '2b73abf5eb497019fbadec99ca8d2b8b';
 
 const config = getDefaultConfig({
   appName: 'Chainsaw',
