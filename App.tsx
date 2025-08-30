@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -26,7 +23,7 @@ const config = getDefaultConfig({
   appName: 'Chainsaw',
   appDescription: 'A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.',
   appUrl: window.location.origin,
-  appIcon: '/icons/icon128.png',
+  appIcon: 'https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png',
   projectId: projectId,
   chains: [mainnet, optimism, base, polygon, arbitrum],
   ssr: false, // If your dApp uses server side rendering (SSR)
