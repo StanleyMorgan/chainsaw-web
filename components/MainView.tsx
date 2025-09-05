@@ -6,7 +6,7 @@ import { useAccount, useSendTransaction } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { PlusIcon } from './icons';
-import { encodeFunctionData } from 'viem';
+import { encodeFunctionData, type Abi, type AbiFunction } from 'viem';
 
 interface MainViewProps {
   settings: Settings;
@@ -81,13 +81,39 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     
     let transactionData: `0x${string}` | undefined;
 
-    if (config.functionName && config.abi && Array.isArray(config.args)) {
+    if (config.abi) {
       try {
-        const abi = typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi;
+        const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
+        let functionName = config.functionName;
+
+        if (!functionName) {
+            // FIX: Add a type guard to the filter to correctly type functionsInAbi as AbiFunction[], which ensures 'name' property is accessible.
+            const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
+            if (functionsInAbi.length === 1) {
+                functionName = functionsInAbi[0].name;
+            } else {
+                throw new Error('"functionName" is missing and could not be inferred. Provide it or ensure the ABI contains exactly one function.');
+            }
+        }
+
+        const functionAbi = abi.find(
+            (item): item is AbiFunction => item.type === 'function' && item.name === functionName
+        );
+
+        if (!functionAbi) {
+            throw new Error(`Function "${functionName}" not found in the provided ABI.`);
+        }
+
+        const args = config.args ?? [];
+
+        if ((functionAbi.inputs?.length || 0) !== args.length) {
+            throw new Error(`Function "${functionName}" expects ${functionAbi.inputs?.length || 0} arguments, but ${args.length} were provided.`);
+        }
+
         transactionData = encodeFunctionData({
-          abi,
-          functionName: config.functionName,
-          args: config.args,
+            abi,
+            functionName,
+            args,
         });
       } catch (error: any) {
         console.error("Failed to encode ABI data:", error);
@@ -97,7 +123,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     } else if (config.data) {
       transactionData = config.data as `0x${string}`;
     } else {
-      showNotification('Button has no transaction data. Configure either raw data or use the ABI encoder.', 'error');
+      showNotification('Button has no transaction data. Configure either raw data or use an ABI.', 'error');
       return;
     }
 

@@ -1,7 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import type { NotificationData } from './Notification';
 import type { Settings } from '../types';
-import { AbiFunctionEncoder } from './AbiFunctionEncoder';
 
 interface AddButtonModalProps {
   isOpen: boolean;
@@ -15,7 +15,6 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
   const [jsonConfig, setJsonConfig] = useState('');
   const [isTemplateDropdownOpen, setTemplateDropdownOpen] = useState(false);
   const templateDropdownRef = useRef<HTMLDivElement>(null);
-  const [isEncoderVisible, setIsEncoderVisible] = useState(false);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
@@ -46,41 +45,6 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
     setTemplateDropdownOpen(false);
   };
   
-  const handleDataGenerated = (generated: { abi: any; functionName: string; args: any[] }) => {
-    try {
-        let currentConfig: any = {};
-        let buttonKey = 'my_button_name';
-
-        if (jsonConfig.trim()) {
-             let textToParse = jsonConfig.trim();
-             if (!textToParse.startsWith('{')) {
-                 if (textToParse.endsWith(',')) textToParse = textToParse.slice(0, -1);
-                 textToParse = `{${textToParse}}`;
-             }
-             const cleanedJson = textToParse.replace(/,(?=\s*[}\]])/g, '');
-             const parsed = JSON.parse(cleanedJson);
-             buttonKey = Object.keys(parsed)[0] || buttonKey;
-             currentConfig = parsed[buttonKey] || {};
-        }
-
-        const { data, ...restOfConfig } = currentConfig;
-
-        const updatedButtonConfig = {
-            ...restOfConfig,
-            abi: generated.abi,
-            functionName: generated.functionName,
-            args: generated.args,
-        };
-        
-        const newJson = { [buttonKey]: updatedButtonConfig };
-        setJsonConfig(JSON.stringify(newJson, null, 2));
-        showNotification('ABI config inserted into JSON!', 'success');
-    } catch (error) {
-        console.log(error);
-        showNotification('Could not update JSON. Ensure existing JSON is valid or empty.', 'error');
-    }
-  };
-
   const handleSave = () => {
     try {
       if (!jsonConfig.trim()) {
@@ -123,10 +87,26 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
       }
       
       const hasRawData = 'data' in config && typeof config.data === 'string';
-      const hasAbiData = 'abi' in config && 'functionName' in config && 'args' in config && Array.isArray(config.args);
+      const hasAbiData = 'abi' in config;
 
       if (!hasRawData && !hasAbiData) {
-          throw new Error('Configuration must include either "data" or all of "abi", "functionName", and "args".');
+          throw new Error('Configuration must include either "data" or "abi".');
+      }
+
+      if (hasAbiData) {
+          if (!Array.isArray(config.abi)) {
+              throw new Error('"abi" must be an array.');
+          }
+          const functionsInAbi = config.abi.filter((item: any) => item.type === 'function');
+          if (functionsInAbi.length === 0) {
+              throw new Error('The provided ABI contains no functions.');
+          }
+          if (functionsInAbi.length > 1 && !config.functionName) {
+              throw new Error('The ABI has multiple functions. Please specify which to call using "functionName".');
+          }
+          if (config.args && !Array.isArray(config.args)) {
+              throw new Error('"args" must be an array.');
+          }
       }
 
       onSave(buttonKey, config);
@@ -142,13 +122,6 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
       <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 space-y-4">
         <h2 className="text-2xl font-bold text-white">Add New Button</h2>
         
-        <details className="bg-gray-900 p-2 rounded-md" onToggle={(e) => setIsEncoderVisible(e.currentTarget.open)}>
-            <summary className="cursor-pointer text-blue-400 hover:text-blue-300 font-semibold select-none">
-                Use ABI Function Encoder (Recommended)
-            </summary>
-            {isEncoderVisible && <AbiFunctionEncoder onDataGenerated={handleDataGenerated} showNotification={showNotification} />}
-        </details>
-
         <div>
             <label htmlFor="jsonConfig" className="block text-sm font-medium text-gray-300 mb-1">
                 Button Configuration JSON
@@ -160,15 +133,17 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
                 className="w-full h-64 p-4 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 spellCheck="false"
                 placeholder={`{
-  "my_button_name": {
+  "my_abi_button": {
     "address": "0x...",
     "color": "#6B2A9D",
     "id": 1,
     "value": "0",
-    "description": "A short description.",
-    "abi": [...],
-    "functionName": "myFunction",
-    "args": [...]
+    "description": "An example ABI button.",
+    "abi": [{
+      "name": "myFunction",
+      "type": "function",
+      "stateMutability": "nonpayable"
+    }]
   }
 }`}
             />
