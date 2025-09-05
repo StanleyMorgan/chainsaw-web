@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { NotificationData } from './Notification';
-import type { Settings, ButtonConfig } from '../types';
+import type { Settings } from '../types';
 import { AbiFunctionEncoder } from './AbiFunctionEncoder';
 
 interface AddButtonModalProps {

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { encodeFunctionData, Abi, AbiFunction } from 'viem';
+import { Abi, AbiFunction } from 'viem';
 import type { NotificationData } from './Notification';
 
 interface AbiFunctionEncoderProps {
