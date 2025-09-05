@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
-import { useAccount, useSendTransaction } from 'wagmi';
+import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
@@ -35,8 +35,9 @@ const ActionButton: React.FC<{
 };
 
 export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, onReorder, showNotification }) => {
-  const { address, chainId, isConnected, connector } = useAccount();
+  const { address, chainId, isConnected } = useAccount();
   const { sendTransaction } = useSendTransaction();
+  const { switchChain } = useSwitchChain();
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -128,54 +129,24 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       return;
     }
     
-    const doSend = () => {
-        sendTransaction({
-            to: config.address as `0x${string}`,
-            value: config.value ? BigInt(config.value) : undefined,
-            data: transactionData,
-            gas: config.gas ? BigInt(config.gas) : undefined,
-        }, {
-            onSuccess: (hash) => {
-                showNotification(`Transaction sent! Hash: ${hash.slice(0,10)}...`, 'success');
-            },
-            onError: (error) => {
-                const message = error.message.includes('User rejected the request') 
-                    ? 'Transaction rejected.' 
-                    : `Transaction failed: ${error.message.split(/[\(.]/)[0]}`;
+    sendTransaction({
+        to: config.address as `0x${string}`,
+        value: config.value ? BigInt(config.value) : undefined,
+        data: transactionData,
+        gas: config.gas ? BigInt(config.gas) : undefined,
+    }, {
+        onSuccess: (hash) => {
+            showNotification(`Transaction sent! Hash: ${hash.slice(0,10)}...`, 'success');
+        },
+        onError: (error) => {
+            const message = error.message.includes('User rejected the request') 
+                ? 'Transaction rejected.' 
+                : `Transaction failed: ${error.message.split(/[\(.]/)[0]}`;
 
-                showNotification(message, message.includes('rejected') ? 'info' : 'error');
-                console.error("Transaction Error:", error);
-            }
-        });
-    }
-    
-    if (chainId !== config.id) {
-        if (!connector) {
-            showNotification('Wallet connector not found.', 'error');
-            return;
+            showNotification(message, message.includes('rejected') ? 'info' : 'error');
+            console.error("Transaction Error:", error);
         }
-
-        try {
-            const provider = await connector.getProvider();
-            await (provider as any).request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: `0x${config.id.toString(16)}` }],
-            });
-            showNotification('Network switched. Please click the button again to send.', 'success');
-        } catch (switchError: any) {
-            if (switchError.code === 4902) {
-                showNotification(`This network (Chain ID: ${config.id}) is not added to your wallet. Please add it manually.`, 'error');
-            } else {
-                const message = switchError.message?.includes('User rejected the request')
-                    ? 'Request to switch network rejected.'
-                    : `Failed to switch network: ${switchError.message?.split(/[\(.]/)[0]}`;
-                showNotification(message, 'error');
-            }
-            console.error("Switch Network Error:", switchError);
-        }
-    } else {
-        doSend();
-    }
+    });
   }
 
   const handleTransaction = async (config: ButtonConfig) => {
@@ -183,7 +154,26 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         showNotification('Please connect your wallet first.', 'info');
         return;
     }
+    
+    // Step 1: Check network and switch if necessary, BEFORE asking for inputs.
+    if (chainId !== config.id) {
+        showNotification(`Switching to chain ID ${config.id}...`, 'info');
+        switchChain({ chainId: config.id }, {
+            onSuccess: () => {
+                showNotification('Network switched successfully. Please click the button again to proceed.', 'success');
+            },
+            onError: (error) => {
+                const message = error.message.includes('User rejected the request')
+                    ? 'Request to switch network rejected.'
+                    : `Failed to switch network: ${error.message.split(/[\(.]/)[0]}`;
+                showNotification(message, 'error');
+                console.error("Switch Network Error:", error);
+            }
+        });
+        return; // Stop execution. User must click again after switching.
+    }
 
+    // Step 2: If network is correct, check if inputs are needed.
     if (config.abi) {
         try {
             const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
@@ -201,7 +191,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             if (functionAbi && functionAbi.inputs && functionAbi.inputs.length > 0) {
                 setCurrentConfigForInput(config);
                 setIsInputModalOpen(true);
-                return;
+                return; // Show modal and wait for user input.
             }
         } catch (error: any) {
             showNotification(`ABI Error: ${error.message}`, 'error');
@@ -209,7 +199,8 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         }
     }
     
-    await executeTransaction(config, config.args);
+    // Step 3: If no inputs needed, execute directly.
+    await executeTransaction(config, config.args || []);
   };
 
   const handleInputModalSubmit = (args: any[]) => {
