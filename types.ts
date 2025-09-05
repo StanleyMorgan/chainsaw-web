@@ -1,5 +1,3 @@
-import type { Chain } from 'viem';
-
 // A user-friendly definition for a custom chain, compatible with viem's Chain type.
 export interface ChainDefinition {
   id: number;
