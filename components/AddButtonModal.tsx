@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import type { NotificationData } from './Notification';
 import type { Settings } from '../types';
@@ -133,17 +132,13 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
                 className="w-full h-64 p-4 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 spellCheck="false"
                 placeholder={`{
-  "my_abi_button": {
+  "my_data_button": {
     "address": "0x...",
-    "color": "#6B2A9D",
+    "color": "#3B82F6",
     "id": 1,
     "value": "0",
-    "description": "An example ABI button.",
-    "abi": [{
-      "name": "myFunction",
-      "type": "function",
-      "stateMutability": "nonpayable"
-    }]
+    "description": "An example button with raw data.",
+    "data": "0x..." // or "abi"
   }
 }`}
             />
