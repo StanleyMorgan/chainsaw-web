@@ -108,21 +108,6 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
           }
       }
 
-      if (config.chain) {
-        if (typeof config.chain !== 'object' || config.chain === null || Array.isArray(config.chain)) {
-            throw new Error('"chain" must be an object.');
-        }
-        if (config.chain.id !== config.id) {
-            throw new Error('The "id" in the main config must match the "id" inside the "chain" object.');
-        }
-        const requiredChainKeys = ['name', 'nativeCurrency', 'rpcUrls'];
-        for (const key of requiredChainKeys) {
-            if (!(key in config.chain)) {
-                throw new Error(`Missing required key in "chain" object: "${key}"`);
-            }
-        }
-      }
-
       onSave(buttonKey, config);
       onClose();
     } catch (error: any) {
@@ -147,24 +132,13 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
                 className="w-full h-64 p-4 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 spellCheck="false"
                 placeholder={`{
-  "sepolia_test": {
-    "id": 11155111,
+  "my_data_button": {
     "address": "0x...",
-    "color": "#8B5CF6",
+    "color": "#3B82F6",
+    "id": 1,
     "value": "0",
-    "description": "An example button for a custom/test network.",
-    "data": "0x...",
-    "chain": {
-      "id": 11155111,
-      "name": "Sepolia",
-      "nativeCurrency": { "name": "Sepolia Ether", "symbol": "SEP", "decimals": 18 },
-      "rpcUrls": {
-        "default": { "http": ["https://rpc.sepolia.org"] }
-      },
-      "blockExplorers": {
-        "default": { "name": "Etherscan", "url": "https://sepolia.etherscan.io" }
-      }
-    }
+    "description": "An example button with raw data.",
+    "data": "0x..." // or "abi"
   }
 }`}
             />
