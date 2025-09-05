@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
-import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi';
+import { useAccount, useSendTransaction, useWalletClient } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
@@ -37,7 +37,7 @@ const ActionButton: React.FC<{
 export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, onReorder, showNotification }) => {
   const { address, chainId, isConnected } = useAccount();
   const { sendTransaction } = useSendTransaction();
-  const { switchChain } = useSwitchChain();
+  const { data: walletClient } = useWalletClient();
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -150,27 +150,44 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   }
 
   const handleTransaction = async (config: ButtonConfig) => {
-    if (!isConnected) {
+    if (!isConnected || !address) {
         showNotification('Please connect your wallet first.', 'info');
         return;
     }
     
-    // Step 1: Check network and switch if necessary, BEFORE asking for inputs.
+    // Step 1: Check network and switch/add if necessary.
     if (chainId !== config.id) {
-        showNotification(`Switching to chain ID ${config.id}...`, 'info');
-        switchChain({ chainId: config.id }, {
-            onSuccess: () => {
-                showNotification('Network switched successfully. Please click the button again to proceed.', 'success');
-            },
-            onError: (error) => {
-                const message = error.message.includes('User rejected the request')
+        if (!walletClient) {
+            showNotification('Wallet client is not ready. Please reconnect and try again.', 'info');
+            return;
+        }
+        try {
+            await walletClient.switchChain({ id: config.id });
+            showNotification('Network switched successfully. Please click the button again to proceed.', 'success');
+        } catch (switchError: any) {
+            // Error code 4902 is the standard for "Unrecognized chain"
+            if ((switchError.code === 4902 || switchError.name === 'ChainNotFoundError') && config.chain) {
+                try {
+                    if (config.chain.id !== config.id) {
+                        showNotification(`Chain definition ID (${config.chain.id}) does not match button ID (${config.id}).`, 'error');
+                        return;
+                    }
+                    await walletClient.addChain({ chain: config.chain as any });
+                    showNotification('Network added. Please click the button again to proceed.', 'success');
+                } catch (addError: any) {
+                    const message = addError.message.includes('User rejected the request')
+                        ? 'Request to add network rejected.'
+                        : `Failed to add network: ${addError.message.split(/[\(.]/)[0]}`;
+                    showNotification(message, 'error');
+                }
+            } else {
+                const message = switchError.message.includes('User rejected the request')
                     ? 'Request to switch network rejected.'
-                    : `Failed to switch network: ${error.message.split(/[\(.]/)[0]}`;
+                    : `Failed to switch network: ${switchError.message.split(/[\(.]/)[0]}`;
                 showNotification(message, 'error');
-                console.error("Switch Network Error:", error);
             }
-        });
-        return; // Stop execution. User must click again after switching.
+        }
+        return; // Stop execution. User must click again after switching/adding.
     }
 
     // Step 2: If network is correct, check if inputs are needed.

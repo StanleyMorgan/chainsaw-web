@@ -9,7 +9,23 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiProvider, useAccount } from 'wagmi';
 // FIX: Correctly import chains from 'viem/chains' as required by recent versions of wagmi and RainbowKit.
-import { mainnet, optimism, base, polygon, arbitrum } from 'viem/chains';
+import {
+  mainnet,
+  optimism,
+  base,
+  polygon,
+  arbitrum,
+  bsc,
+  avalanche,
+  fantom,
+  gnosis,
+  zora,
+  linea,
+  scroll,
+  celo,
+  aurora,
+  polygonZkEvm,
+} from 'viem/chains';
 // Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
 // FIX: Split the import for QueryClient to resolve a module resolution error, importing it directly from @tanstack/query-core.
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -25,7 +41,23 @@ const config = getDefaultConfig({
   appUrl: window.location.origin,
   appIcon: 'https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png',
   projectId: projectId,
-  chains: [mainnet, optimism, base, polygon, arbitrum],
+  chains: [
+    mainnet,
+    optimism,
+    base,
+    polygon,
+    arbitrum,
+    bsc,
+    avalanche,
+    fantom,
+    gnosis,
+    zora,
+    linea,
+    scroll,
+    celo,
+    aurora,
+    polygonZkEvm,
+  ],
   ssr: false, // If your dApp uses server side rendering (SSR)
 });
 

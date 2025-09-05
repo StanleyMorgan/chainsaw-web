@@ -1,3 +1,26 @@
+import type { Chain } from 'viem';
+
+// A user-friendly definition for a custom chain, compatible with viem's Chain type.
+export interface ChainDefinition {
+  id: number;
+  name: string;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+  rpcUrls: {
+    default: { http: string[] };
+    public?: { http: string[] };
+    [key: string]: any;
+  };
+  blockExplorers?: {
+    default: { name: string; url: string };
+    [key: string]: any;
+  };
+}
+
+
 export interface ButtonConfig {
   id: number;
   address: string;
@@ -10,6 +33,8 @@ export interface ButtonConfig {
   abi?: any;
   functionName?: string;
   args?: any[];
+  // Optional: for defining a custom network
+  chain?: ChainDefinition;
 }
 
 export interface Settings {
