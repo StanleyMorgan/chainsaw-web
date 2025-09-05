@@ -78,7 +78,7 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
           throw new Error('The button configuration under the key must be an object.');
       }
 
-      const requiredKeys = ['address', 'color', 'data', 'gas', 'id', 'value'];
+      const requiredKeys = ['address', 'color', 'data', 'id', 'value'];
       for (const key of requiredKeys) {
         if (!(key in config)) {
           throw new Error(`Missing required key in JSON: "${key}"`);
@@ -112,9 +112,9 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
     "address": "0x...",
     "color": "#6B2A9D",
     "data": "0x...",
-    "gas": "0x14F60",
     "id": 1,
     "value": "0x0",
+    "gas": "0x14F60", // Optional
     "description": "A short description."
   }
 }`}

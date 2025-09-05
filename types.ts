@@ -3,7 +3,7 @@ export interface ButtonConfig {
   address: string;
   value: string;
   data: string;
-  gas: string;
+  gas?: string;
   color: string;
   description?: string;
 }
