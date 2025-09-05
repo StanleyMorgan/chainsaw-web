@@ -6,6 +6,7 @@ import { useAccount, useSendTransaction } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { PlusIcon } from './icons';
+import { encodeFunctionData } from 'viem';
 
 interface MainViewProps {
   settings: Settings;
@@ -77,12 +78,34 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         showNotification('Please connect your wallet first.', 'info');
         return;
     }
+    
+    let transactionData: `0x${string}` | undefined;
+
+    if (config.functionName && config.abi && Array.isArray(config.args)) {
+      try {
+        const abi = typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi;
+        transactionData = encodeFunctionData({
+          abi,
+          functionName: config.functionName,
+          args: config.args,
+        });
+      } catch (error: any) {
+        console.error("Failed to encode ABI data:", error);
+        showNotification(`Error encoding transaction data: ${error.message}`, 'error');
+        return;
+      }
+    } else if (config.data) {
+      transactionData = config.data as `0x${string}`;
+    } else {
+      showNotification('Button has no transaction data. Configure either raw data or use the ABI encoder.', 'error');
+      return;
+    }
 
     const executeTransaction = () => {
         sendTransaction({
             to: config.address as `0x${string}`,
             value: config.value ? BigInt(config.value) : undefined,
-            data: config.data as `0x${string}`,
+            data: transactionData,
             gas: config.gas ? BigInt(config.gas) : undefined,
         }, {
             onSuccess: (hash) => {
