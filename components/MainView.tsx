@@ -1,10 +1,10 @@
-
 import React, { useState, useRef } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
 import { useAccount, useSendTransaction } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
+import { InputModal } from './InputModal';
 import { PlusIcon } from './icons';
 import { encodeFunctionData, type Abi, type AbiFunction } from 'viem';
 
@@ -38,7 +38,10 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   const { address, chainId, isConnected, connector } = useAccount();
   const { sendTransaction } = useSendTransaction();
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isInputModalOpen, setIsInputModalOpen] = useState(false);
+  const [currentConfigForInput, setCurrentConfigForInput] = useState<ButtonConfig | null>(null);
+
 
   const draggedItemKey = useRef<string | null>(null);
 
@@ -72,13 +75,13 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     setVisibleButtons({ ...visibleButtons, [key]: true });
     showNotification(`Button "${key}" saved successfully!`, 'success');
   };
-
-  const handleTransaction = async (config: ButtonConfig) => {
+  
+  const executeTransaction = async (config: ButtonConfig, args: any[] = []) => {
     if (!isConnected || !address) {
         showNotification('Please connect your wallet first.', 'info');
         return;
     }
-    
+
     let transactionData: `0x${string}` | undefined;
 
     if (config.abi) {
@@ -87,7 +90,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         let functionName = config.functionName;
 
         if (!functionName) {
-            // FIX: Add a type guard to the filter to correctly type functionsInAbi as AbiFunction[], which ensures 'name' property is accessible.
             const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
             if (functionsInAbi.length === 1) {
                 functionName = functionsInAbi[0].name;
@@ -95,7 +97,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                 throw new Error('"functionName" is missing and could not be inferred. Provide it or ensure the ABI contains exactly one function.');
             }
         }
-
+        
         const functionAbi = abi.find(
             (item): item is AbiFunction => item.type === 'function' && item.name === functionName
         );
@@ -103,18 +105,17 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         if (!functionAbi) {
             throw new Error(`Function "${functionName}" not found in the provided ABI.`);
         }
-
-        const args = config.args ?? [];
-
+        
         if ((functionAbi.inputs?.length || 0) !== args.length) {
             throw new Error(`Function "${functionName}" expects ${functionAbi.inputs?.length || 0} arguments, but ${args.length} were provided.`);
         }
-
+        
         transactionData = encodeFunctionData({
             abi,
             functionName,
             args,
         });
+
       } catch (error: any) {
         console.error("Failed to encode ABI data:", error);
         showNotification(`Error encoding transaction data: ${error.message}`, 'error');
@@ -126,8 +127,8 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       showNotification('Button has no transaction data. Configure either raw data or use an ABI.', 'error');
       return;
     }
-
-    const executeTransaction = () => {
+    
+    const doSend = () => {
         sendTransaction({
             to: config.address as `0x${string}`,
             value: config.value ? BigInt(config.value) : undefined,
@@ -156,7 +157,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
         try {
             const provider = await connector.getProvider();
-            // Fix: Cast provider to `any` because `connector.getProvider()` returns `unknown` for type safety.
             await (provider as any).request({
                 method: 'wallet_switchEthereumChain',
                 params: [{ chainId: `0x${config.id.toString(16)}` }],
@@ -174,9 +174,52 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             console.error("Switch Network Error:", switchError);
         }
     } else {
-        executeTransaction();
+        doSend();
     }
+  }
+
+  const handleTransaction = async (config: ButtonConfig) => {
+    if (!isConnected) {
+        showNotification('Please connect your wallet first.', 'info');
+        return;
+    }
+
+    if (config.abi) {
+        try {
+            const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
+            let functionName = config.functionName;
+             if (!functionName) {
+                const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
+                if (functionsInAbi.length === 1) {
+                    functionName = functionsInAbi[0].name;
+                }
+            }
+            const functionAbi = abi.find(
+                (item): item is AbiFunction => item.type === 'function' && item.name === functionName
+            );
+
+            if (functionAbi && functionAbi.inputs && functionAbi.inputs.length > 0) {
+                setCurrentConfigForInput(config);
+                setIsInputModalOpen(true);
+                return;
+            }
+        } catch (error: any) {
+            showNotification(`ABI Error: ${error.message}`, 'error');
+            return;
+        }
+    }
+    
+    await executeTransaction(config, config.args);
   };
+
+  const handleInputModalSubmit = (args: any[]) => {
+    if (currentConfigForInput) {
+        executeTransaction(currentConfigForInput, args);
+    }
+    setIsInputModalOpen(false);
+    setCurrentConfigForInput(null);
+  };
+
 
   const orderedVisibleKeys = buttonOrder.filter(key => visibleButtons[key] !== false);
 
@@ -193,11 +236,22 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   return (
     <div>
       <AddButtonModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
         onSave={handleSaveButton}
         showNotification={showNotification}
         settings={settings}
+      />
+
+      <InputModal
+          isOpen={isInputModalOpen}
+          onClose={() => {
+              setIsInputModalOpen(false);
+              setCurrentConfigForInput(null);
+          }}
+          config={currentConfigForInput}
+          onSubmit={handleInputModalSubmit}
+          showNotification={showNotification}
       />
 
       {orderedVisibleKeys.length > 0 ? (
@@ -215,7 +269,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             </div>
 
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => setIsAddModalOpen(true)}
               className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold flex items-center justify-center"
               aria-label="Add New Button"
             >
@@ -258,7 +312,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
           <h2 className="text-xl font-semibold mb-2">No Buttons Configured</h2>
           <p className="text-gray-400 mb-6">Go to the Settings page to configure your action buttons, or click below to add your first one.</p>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => setIsAddModalOpen(true)}
             className="mt-4 inline-flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold"
             aria-label="Add New Button"
           >
