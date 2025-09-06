@@ -78,7 +78,10 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                     }
                 }
                  if (input.type.startsWith('uint') || input.type.startsWith('int')) {
-                    return BigInt(value);
+                    // This is the fix: return a string, not a BigInt object.
+                    // This makes the args array JSON-serializable.
+                    // viem correctly handles string representations for numeric types.
+                    return BigInt(value).toString();
                 }
                 if (input.type === 'bool') {
                     const lowerValue = value.toLowerCase();
