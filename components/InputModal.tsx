@@ -138,25 +138,27 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                     ))}
                 </div>
 
-                <div className="flex items-center justify-end gap-4 pt-2">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                    >
-                        Cancel
-                    </button>
+                <div className="flex items-center justify-between pt-2">
                     <button
                         onClick={handleSave}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                     >
                         Save
                     </button>
-                    <button
-                        onClick={handleSubmit}
-                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                    >
-                        Send
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                        >
+                            Send
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
