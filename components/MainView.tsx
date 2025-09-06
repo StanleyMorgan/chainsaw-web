@@ -226,9 +226,12 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     const { key, config } = currentConfigForInput;
     const updatedConfig = { ...config, args };
     const newSettings = { ...settings, [key]: updatedConfig };
+    
+    // This is the key change: call the main settings updater
+    // which will trigger the save to localStorage in App.tsx
     setSettings(newSettings);
     
-    // Update state for the open modal as well
+    // Update state for the open modal as well so the user sees the change immediately
     setCurrentConfigForInput({ key, config: updatedConfig });
   };
 
