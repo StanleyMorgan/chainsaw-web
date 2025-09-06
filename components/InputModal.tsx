@@ -8,10 +8,11 @@ interface InputModalProps {
   onClose: () => void;
   config: ButtonConfig | null;
   onSubmit: (args: any[]) => void;
+  onSave: (args: any[]) => void;
   showNotification: (message: string, type: NotificationData['type']) => void;
 }
 
-export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config, onSubmit, showNotification }) => {
+export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config, onSubmit, onSave, showNotification }) => {
     const [argValues, setArgValues] = useState<string[]>([]);
 
     const selectedFunction = useMemo(() => {
@@ -34,20 +35,30 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
     useEffect(() => {
         if (selectedFunction) {
-            setArgValues(new Array(selectedFunction.inputs.length).fill(''));
+            if (config?.args && config.args.length === selectedFunction.inputs.length) {
+                const initialArgs = config.args.map(arg => {
+                    if (typeof arg === 'object' && arg !== null) {
+                        return JSON.stringify(arg);
+                    }
+                    return String(arg);
+                });
+                setArgValues(initialArgs);
+            } else {
+                setArgValues(new Array(selectedFunction.inputs.length).fill(''));
+            }
         }
-    }, [selectedFunction]);
+    }, [selectedFunction, config]);
 
     const handleArgChange = (index: number, value: string) => {
         const newArgs = [...argValues];
         newArgs[index] = value;
         setArgValues(newArgs);
     };
-
-    const handleSubmit = () => {
+    
+    const processArgs = (): any[] | null => {
         if (!selectedFunction) {
             showNotification('Could not determine function from ABI.', 'error');
-            return;
+            return null;
         }
         try {
             const processedArgs = selectedFunction.inputs.map((input, index) => {
@@ -78,10 +89,25 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                 }
                 return value;
             });
-
-            onSubmit(processedArgs);
+            return processedArgs;
         } catch (e: any) {
             showNotification(`Error: ${e.message}`, 'error');
+            return null;
+        }
+    };
+
+    const handleSubmit = () => {
+        const processedArgs = processArgs();
+        if (processedArgs) {
+            onSubmit(processedArgs);
+        }
+    };
+
+    const handleSave = () => {
+        const processedArgs = processArgs();
+        if (processedArgs) {
+            onSave(processedArgs);
+            showNotification('Inputs saved as default for this button.', 'success');
         }
     };
 
@@ -118,6 +144,12 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                         className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
                     >
                         Cancel
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                    >
+                        Save
                     </button>
                     <button
                         onClick={handleSubmit}

@@ -40,7 +40,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
-  const [currentConfigForInput, setCurrentConfigForInput] = useState<ButtonConfig | null>(null);
+  const [currentConfigForInput, setCurrentConfigForInput] = useState<{ key: string; config: ButtonConfig } | null>(null);
 
 
   const draggedItemKey = useRef<string | null>(null);
@@ -178,7 +178,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     }
   }
 
-  const handleTransaction = async (config: ButtonConfig) => {
+  const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
         showNotification('Please connect your wallet first.', 'info');
         return;
@@ -199,7 +199,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             );
 
             if (functionAbi && functionAbi.inputs && functionAbi.inputs.length > 0) {
-                setCurrentConfigForInput(config);
+                setCurrentConfigForInput({ key, config });
                 setIsInputModalOpen(true);
                 return;
             }
@@ -214,10 +214,22 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
   const handleInputModalSubmit = (args: any[]) => {
     if (currentConfigForInput) {
-        executeTransaction(currentConfigForInput, args);
+        executeTransaction(currentConfigForInput.config, args);
     }
     setIsInputModalOpen(false);
     setCurrentConfigForInput(null);
+  };
+
+  const handleInputModalSave = (args: any[]) => {
+    if (!currentConfigForInput) return;
+
+    const { key, config } = currentConfigForInput;
+    const updatedConfig = { ...config, args };
+    const newSettings = { ...settings, [key]: updatedConfig };
+    setSettings(newSettings);
+    
+    // Update state for the open modal as well
+    setCurrentConfigForInput({ key, config: updatedConfig });
   };
 
 
@@ -249,8 +261,9 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
               setIsInputModalOpen(false);
               setCurrentConfigForInput(null);
           }}
-          config={currentConfigForInput}
+          config={currentConfigForInput ? currentConfigForInput.config : null}
           onSubmit={handleInputModalSubmit}
+          onSave={handleInputModalSave}
           showNotification={showNotification}
       />
 
@@ -300,7 +313,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   <ActionButton
                     buttonKey={key}
                     config={config}
-                    onClick={() => handleTransaction(config)}
+                    onClick={() => handleTransaction(key, config)}
                   />
                 </div>
               );
