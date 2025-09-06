@@ -113,14 +113,24 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
             showNotification('Inputs saved as default for this button.', 'success');
         }
     };
+    
+    const getPlaceholderText = (type: string): string => {
+        if (type === 'string[]') {
+            return 'e.g., ["abcd", "efgh"]';
+        }
+        if (type.endsWith('[]')) {
+            return 'e.g., ["0x123...", "0xabc..."]';
+        }
+        return type;
+    };
 
     if (!isOpen || !config || !selectedFunction) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4">
-                <h2 className="text-2xl font-bold text-white">
-                    Inputs for <span className="font-mono text-blue-400">{selectedFunction.name}</span>
+                <h2 className="text-2xl font-bold text-blue-400 font-mono">
+                    {selectedFunction.name}
                 </h2>
 
                 <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
@@ -135,7 +145,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                                 value={argValues[index] || ''}
                                 onChange={(e) => handleArgChange(index, e.target.value)}
                                 className="w-full mt-1 p-2 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                placeholder={input.type.endsWith('[]') ? 'e.g., ["0x123...", "0xabc..."]' : input.type}
+                                placeholder={getPlaceholderText(input.type)}
                             />
                         </div>
                     ))}
