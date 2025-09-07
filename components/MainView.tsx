@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
-import { useAccount, useSendTransaction } from 'wagmi';
+import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
@@ -35,8 +36,9 @@ const ActionButton: React.FC<{
 };
 
 export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, onReorder, showNotification }) => {
-  const { address, chainId, isConnected, connector } = useAccount();
+  const { address, chainId, isConnected } = useAccount();
   const { sendTransaction } = useSendTransaction();
+  const { switchChainAsync } = useSwitchChain();
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -82,101 +84,90 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         return;
     }
 
+    // 1. Switch network if necessary
+    if (chainId !== config.id) {
+        if (!switchChainAsync) {
+            showNotification('Network switching is not supported by your wallet.', 'error');
+            return;
+        }
+        try {
+            await switchChainAsync({ chainId: config.id });
+            // After switching, wagmi internals update. The next `sendTransaction` call will target the new chain.
+        } catch (switchError: any) {
+            const message = switchError.message?.includes('User rejected the request')
+                ? 'Request to switch network rejected.'
+                : `Failed to switch network: ${switchError.message?.split(/[\(.]/)[0]}`;
+            showNotification(message, 'error');
+            console.error("Switch Network Error:", switchError);
+            return; // Stop execution if network switch fails
+        }
+    }
+
+    // 2. Prepare transaction data
     let transactionData: `0x${string}` | undefined;
+    try {
+        if (config.abi) {
+            const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
+            let functionName = config.functionName;
 
-    if (config.abi) {
-      try {
-        const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
-        let functionName = config.functionName;
-
-        if (!functionName) {
-            const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
-            if (functionsInAbi.length === 1) {
-                functionName = functionsInAbi[0].name;
-            } else {
-                throw new Error('"functionName" is missing and could not be inferred. Provide it or ensure the ABI contains exactly one function.');
+            if (!functionName) {
+                const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
+                if (functionsInAbi.length === 1) {
+                    functionName = functionsInAbi[0].name;
+                } else {
+                    throw new Error('"functionName" is missing and could not be inferred. Provide it or ensure the ABI contains exactly one function.');
+                }
             }
-        }
-        
-        const functionAbi = abi.find(
-            (item): item is AbiFunction => item.type === 'function' && item.name === functionName
-        );
+            
+            const functionAbi = abi.find(
+                (item): item is AbiFunction => item.type === 'function' && item.name === functionName
+            );
 
-        if (!functionAbi) {
-            throw new Error(`Function "${functionName}" not found in the provided ABI.`);
+            if (!functionAbi) {
+                throw new Error(`Function "${functionName}" not found in the provided ABI.`);
+            }
+            
+            if ((functionAbi.inputs?.length || 0) !== args.length) {
+                throw new Error(`Function "${functionName}" expects ${functionAbi.inputs?.length || 0} arguments, but ${args.length} were provided.`);
+            }
+            
+            transactionData = encodeFunctionData({
+                abi,
+                functionName,
+                args,
+            });
+        } else if (config.data) {
+            transactionData = config.data as `0x${string}`;
+        } else {
+            showNotification('Button has no transaction data. Configure either raw data or use an ABI.', 'error');
+            return;
         }
-        
-        if ((functionAbi.inputs?.length || 0) !== args.length) {
-            throw new Error(`Function "${functionName}" expects ${functionAbi.inputs?.length || 0} arguments, but ${args.length} were provided.`);
-        }
-        
-        transactionData = encodeFunctionData({
-            abi,
-            functionName,
-            args,
-        });
-
-      } catch (error: any) {
+    } catch (error: any) {
         console.error("Failed to encode ABI data:", error);
         showNotification(`Error encoding transaction data: ${error.message}`, 'error');
         return;
-      }
-    } else if (config.data) {
-      transactionData = config.data as `0x${string}`;
-    } else {
-      showNotification('Button has no transaction data. Configure either raw data or use an ABI.', 'error');
-      return;
     }
     
-    const doSend = () => {
-        sendTransaction({
-            to: config.address as `0x${string}`,
-            value: config.value ? BigInt(config.value) : undefined,
-            data: transactionData,
-            gas: config.gas ? BigInt(config.gas) : undefined,
-        }, {
-            onSuccess: (hash) => {
-                showNotification(`Transaction sent! Hash: ${hash.slice(0,10)}...`, 'success');
-            },
-            onError: (error) => {
-                const message = error.message.includes('User rejected the request') 
-                    ? 'Transaction rejected.' 
-                    : `Transaction failed: ${error.message.split(/[\(.]/)[0]}`;
+    // 3. Send transaction
+    sendTransaction({
+        to: config.address as `0x${string}`,
+        value: config.value ? BigInt(config.value) : undefined,
+        data: transactionData,
+        gas: config.gas ? BigInt(config.gas) : undefined,
+    }, {
+        onSuccess: (hash) => {
+            showNotification(`Transaction sent! Hash: ${hash.slice(0,10)}...`, 'success');
+        },
+        onError: (error) => {
+            const message = error.message.includes('User rejected the request') 
+                ? 'Transaction rejected.' 
+                : `Transaction failed: ${error.message.split(/[\(.]/)[0]}`;
 
-                showNotification(message, message.includes('rejected') ? 'info' : 'error');
-                console.error("Transaction Error:", error);
-            }
-        });
-    }
-    
-    if (chainId !== config.id) {
-        if (!connector) {
-            showNotification('Wallet connector not found.', 'error');
-            return;
+            showNotification(message, message.includes('rejected') ? 'info' : 'error');
+            console.error("Transaction Error:", error);
         }
-
-        try {
-            const provider = await connector.getProvider();
-            await (provider as any).request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: `0x${config.id.toString(16)}` }],
-            });
-            showNotification('Network switched. Please click the button again to send.', 'success');
-        } catch (switchError: any) {
-            if (switchError.code === 4902) {
-                showNotification(`This network (Chain ID: ${config.id}) is not added to your wallet. Please add it manually.`, 'error');
-            } else {
-                const message = switchError.message?.includes('User rejected the request')
-                    ? 'Request to switch network rejected.'
-                    : `Failed to switch network: ${switchError.message?.split(/[\(.]/)[0]}`;
-                showNotification(message, 'error');
-            }
-            console.error("Switch Network Error:", switchError);
-        }
-    } else {
-        doSend();
-    }
-  }, [isConnected, address, showNotification, sendTransaction, chainId, connector]);
+    });
+  }, [isConnected, address, showNotification, sendTransaction, chainId, switchChainAsync]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
