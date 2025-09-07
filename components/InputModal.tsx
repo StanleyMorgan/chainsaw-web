@@ -84,7 +84,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                         if (typeof arg === 'object' && arg !== null) {
                             return JSON.stringify(arg);
                         }
-                        return String(arg);
+                        return String(arg ?? '');
                     });
                 };
 
@@ -169,11 +169,9 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
     };
 
     const handleSave = () => {
-        const processedArgs = processArgs();
-        if (processedArgs) {
-            onSave(processedArgs);
-            showNotification('Inputs saved as default for this button.', 'success');
-        }
+        // Don't validate, just save the current UI state.
+        onSave(argValues);
+        showNotification('Inputs saved as default for this button.', 'success');
     };
     
     const getPlaceholderText = (type: string): string => {
