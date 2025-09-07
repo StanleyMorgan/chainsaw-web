@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
 import { useAccount, useSendTransaction } from 'wagmi';
@@ -76,7 +76,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     showNotification(`Button "${key}" saved successfully!`, 'success');
   };
   
-  const executeTransaction = async (config: ButtonConfig, args: any[] = []) => {
+  const executeTransaction = useCallback(async (config: ButtonConfig, args: any[] = []) => {
     if (!isConnected || !address) {
         showNotification('Please connect your wallet first.', 'info');
         return;
@@ -176,7 +176,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     } else {
         doSend();
     }
-  }
+  }, [isConnected, address, showNotification, sendTransaction, chainId, connector]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
@@ -212,28 +212,30 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     await executeTransaction(config, config.args);
   };
 
-  const handleInputModalSubmit = (args: any[]) => {
+  const handleInputModalSubmit = useCallback((args: any[]) => {
     if (currentConfigForInput) {
         executeTransaction(currentConfigForInput.config, args);
     }
     setIsInputModalOpen(false);
     setCurrentConfigForInput(null);
-  };
+  }, [currentConfigForInput, executeTransaction]);
 
-  const handleInputModalSave = (args: any[]) => {
+  const handleInputModalSave = useCallback((args: any[]) => {
     if (!currentConfigForInput) return;
 
     const { key, config } = currentConfigForInput;
     const updatedConfig = { ...config, args };
     const newSettings = { ...settings, [key]: updatedConfig };
     
-    // This is the key change: call the main settings updater
-    // which will trigger the save to localStorage in App.tsx
     setSettings(newSettings);
     
-    // Update state for the open modal as well so the user sees the change immediately
     setCurrentConfigForInput({ key, config: updatedConfig });
-  };
+  }, [currentConfigForInput, settings, setSettings]);
+
+  const handleInputModalClose = useCallback(() => {
+    setIsInputModalOpen(false);
+    setCurrentConfigForInput(null);
+  }, []);
 
 
   const orderedVisibleKeys = buttonOrder.filter(key => visibleButtons[key] !== false);
@@ -260,10 +262,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
       <InputModal
           isOpen={isInputModalOpen}
-          onClose={() => {
-              setIsInputModalOpen(false);
-              setCurrentConfigForInput(null);
-          }}
+          onClose={handleInputModalClose}
           config={currentConfigForInput ? currentConfigForInput.config : null}
           onSubmit={handleInputModalSubmit}
           onSave={handleInputModalSave}
