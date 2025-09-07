@@ -10,6 +10,15 @@ export interface ButtonConfig {
   abi?: any;
   functionName?: string;
   args?: any[];
+  // Optional: for adding a new network
+  chainName?: string;
+  nativeCurrency?: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+  rpcUrls?: string[];
+  blockExplorerUrls?: string[];
 }
 
 export interface Settings {

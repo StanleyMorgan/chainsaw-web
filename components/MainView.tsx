@@ -2,12 +2,13 @@
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
-import { useAccount, useSendTransaction, useSwitchChain } from 'wagmi';
+import { useAccount, useSendTransaction, useConnectorClient } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
 import { PlusIcon } from './icons';
-import { encodeFunctionData, type Abi, type AbiFunction } from 'viem';
+// FIX: Import Chain type from viem to correctly type the object for adding a new network.
+import { encodeFunctionData, type Abi, type AbiFunction, numberToHex, type Chain } from 'viem';
 
 interface MainViewProps {
   settings: Settings;
@@ -37,8 +38,8 @@ const ActionButton: React.FC<{
 
 export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, onReorder, showNotification }) => {
   const { address, chainId, isConnected } = useAccount();
+  const { data: client } = useConnectorClient();
   const { sendTransaction } = useSendTransaction();
-  const { switchChainAsync } = useSwitchChain();
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -79,29 +80,59 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   };
   
   const executeTransaction = useCallback(async (config: ButtonConfig, args: any[] = []) => {
-    if (!isConnected || !address) {
+    if (!isConnected || !address || !client) {
         showNotification('Please connect your wallet first.', 'info');
         return;
     }
-
+    
     // 1. Switch network if necessary
     if (chainId !== config.id) {
-        if (!switchChainAsync) {
-            showNotification('Network switching is not supported by your wallet.', 'error');
-            return;
-        }
         try {
-            await switchChainAsync({ chainId: config.id });
-            // After switching, wagmi internals update. The next `sendTransaction` call will target the new chain.
+            // FIX: Use the wagmi/viem client's `switchChain` method instead of a raw `request` call.
+            await client.switchChain({ id: config.id });
         } catch (switchError: any) {
-            const message = switchError.message?.includes('User rejected the request')
-                ? 'Request to switch network rejected.'
-                : `Failed to switch network: ${switchError.message?.split(/[\(.]/)[0]}`;
-            showNotification(message, 'error');
-            console.error("Switch Network Error:", switchError);
-            return; // Stop execution if network switch fails
+            // Error code 4902 indicates the chain has not been added to MetaMask.
+            if (switchError.code === 4902) {
+                try {
+                    if (!config.chainName || !config.rpcUrls?.length || !config.nativeCurrency) {
+                        showNotification('Chain not found in wallet. Please add it manually or provide complete chain details in the button config.', 'error');
+                        return;
+                    }
+                    // FIX: Use the wagmi/viem client's `addChain` method, constructing a valid `Chain` object.
+                    const newChain: Chain = {
+                        id: config.id,
+                        name: config.chainName,
+                        network: config.chainName.toLowerCase().replace(/\s+/g, '-'),
+                        nativeCurrency: config.nativeCurrency,
+                        rpcUrls: {
+                            default: { http: config.rpcUrls },
+                            public: { http: config.rpcUrls },
+                        },
+                        blockExplorers: config.blockExplorerUrls?.length ? {
+                            default: { name: `${config.chainName} Explorer`, url: config.blockExplorerUrls[0] },
+                        } : undefined,
+                    };
+
+                    await client.addChain({ chain: newChain });
+                } catch (addError: any) {
+                    const message = addError.message?.includes('User rejected the request')
+                        ? 'Request to add network rejected.'
+                        : `Failed to add network: ${addError.message?.split(/[\(.]/)[0]}`;
+                    showNotification(message, 'error');
+                    console.error("Add Network Error:", addError);
+                    return;
+                }
+            } else {
+                const message = switchError.message?.includes('User rejected the request')
+                    ? 'Request to switch network rejected.'
+                    : `Failed to switch network: ${switchError.message?.split(/[\(.]/)[0]}`;
+                showNotification(message, 'error');
+                console.error("Switch Network Error:", switchError);
+                return;
+            }
         }
     }
+
 
     // 2. Prepare transaction data
     let transactionData: `0x${string}` | undefined;
@@ -167,7 +198,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             console.error("Transaction Error:", error);
         }
     });
-  }, [isConnected, address, showNotification, sendTransaction, chainId, switchChainAsync]);
+  }, [isConnected, address, showNotification, sendTransaction, chainId, client]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
