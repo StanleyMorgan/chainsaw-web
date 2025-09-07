@@ -10,17 +10,6 @@ import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiProvider, useAccount } from 'wagmi';
 // FIX: Correctly import chains from 'viem/chains' as required by recent versions of wagmi and RainbowKit.
 import { 
-  mainnet, 
-  optimism, 
-  base, 
-  polygon, 
-  arbitrum,
-  zora,
-  bsc,
-  avalanche,
-  fantom,
-  gnosis,
-  celo,
   sepolia
 } from 'viem/chains';
 // Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
@@ -39,17 +28,6 @@ const config = getDefaultConfig({
   appIcon: 'https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png',
   projectId: projectId,
   chains: [
-    mainnet, 
-    optimism, 
-    base, 
-    polygon, 
-    arbitrum,
-    zora,
-    bsc,
-    avalanche,
-    fantom,
-    gnosis,
-    celo,
     sepolia
   ],
   ssr: false, // If your dApp uses server side rendering (SSR)

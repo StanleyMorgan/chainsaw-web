@@ -1,9 +1,8 @@
 
-
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
-import { useAccount, useSendTransaction, useConnectorClient, useSwitchChain } from 'wagmi';
+import { useAccount, useSendTransaction, useConnectorClient } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
@@ -40,7 +39,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   const { address, chainId, isConnected } = useAccount();
   const { data: client } = useConnectorClient();
   const { sendTransaction } = useSendTransaction();
-  const { switchChainAsync } = useSwitchChain();
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
@@ -85,30 +83,29 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         showNotification('Please connect your wallet first.', 'info');
         return;
     }
-    
+
+    // FIX: Re-assign `client` to a new constant to prevent TypeScript's control flow
+    // analysis from incorrectly inferring its type as `never` inside a `try...catch` block.
+    const checkedClient = client;
+
     // 1. Switch network if necessary
     if (chainId !== config.id) {
         try {
-            if (!switchChainAsync) {
-                showNotification('Wallet does not support switching networks.', 'info');
-                return;
-            }
-            await switchChainAsync({ chainId: config.id });
+            await checkedClient.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: numberToHex(config.id) }],
+            });
         } catch (switchError: any) {
             // Error code 4902 indicates the chain has not been added to MetaMask.
             const code = switchError.cause?.code || switchError.code;
             if (code === 4902) {
-                // FIX: Add a null check for `client` to help TypeScript's control flow analysis.
-                // In complex scenarios like a nested catch block, the type narrowing from the
-                // initial check can be lost, leading to an incorrect type inference of `never`.
-                if (!client) return;
                 try {
                     if (!config.chainName || !config.rpcUrls?.length || !config.nativeCurrency) {
                         showNotification('Chain not found in wallet. Please add it manually or provide complete chain details in the button config.', 'error');
                         return;
                     }
                     
-                    await client.request({
+                    await checkedClient.request({
                         method: 'wallet_addEthereumChain',
                         params: [{
                             chainId: numberToHex(config.id),
@@ -118,11 +115,10 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                             blockExplorerUrls: config.blockExplorerUrls,
                         }],
                     });
+                    
+                    // After adding, the wallet usually switches automatically. No need to call switch again,
+                    // which would fail for custom chains anyway.
 
-                    // After adding, try switching again
-                    if (switchChainAsync) {
-                        await switchChainAsync({ chainId: config.id });
-                    }
                 } catch (addError: any) {
                     const message = addError.message?.includes('User rejected the request')
                         ? 'Request to add network rejected.'
@@ -207,7 +203,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             console.error("Transaction Error:", error);
         }
     });
-  }, [isConnected, address, showNotification, sendTransaction, chainId, client, switchChainAsync]);
+  }, [isConnected, address, showNotification, sendTransaction, chainId, client]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
