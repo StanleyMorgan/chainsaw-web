@@ -53,43 +53,52 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
     useEffect(() => {
         if (selectedFunction) {
-            const createDefaultValue = (input: AbiParameter): any => {
-                if (input.type === 'tuple') {
-                    const tupleObj: { [key: string]: any } = {};
-                    // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
-                    ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
-                        tupleObj[component.name] = createDefaultValue(component);
+            try {
+                const createDefaultValue = (input: AbiParameter): any => {
+                    if (input.type === 'tuple') {
+                        const tupleObj: { [key: string]: any } = {};
+                        // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
+                        ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
+                            // FIX: Ensure component has a name before using it as a key.
+                            if (!component.name) throw new Error("A tuple component in the ABI is missing a name.");
+                            tupleObj[component.name] = createDefaultValue(component);
+                        });
+                        return tupleObj;
+                    }
+                    return '';
+                };
+                
+                const formatSavedArgsForUI = (inputs: readonly AbiParameter[], args: any[]): any[] => {
+                    return args.map((arg, index) => {
+                        const input = inputs[index];
+                        if (input.type === 'tuple' && typeof arg === 'object' && arg !== null) {
+                             const formattedTuple: { [key: string]: any } = {};
+                             // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
+                             ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
+                                // FIX: Ensure component has a name before using it as a key.
+                                if (!component.name) throw new Error("A tuple component in the ABI is missing a name.");
+                                formattedTuple[component.name] = formatSavedArgsForUI([component], [arg[component.name]])[0];
+                             });
+                             return formattedTuple;
+                        }
+                        if (typeof arg === 'object' && arg !== null) {
+                            return JSON.stringify(arg);
+                        }
+                        return String(arg);
                     });
-                    return tupleObj;
-                }
-                return '';
-            };
-            
-            const formatSavedArgsForUI = (inputs: readonly AbiParameter[], args: any[]): any[] => {
-                return args.map((arg, index) => {
-                    const input = inputs[index];
-                    if (input.type === 'tuple' && typeof arg === 'object' && arg !== null) {
-                         const formattedTuple: { [key: string]: any } = {};
-                         // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
-                         ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
-                            formattedTuple[component.name] = formatSavedArgsForUI([component], [arg[component.name]])[0];
-                         });
-                         return formattedTuple;
-                    }
-                    if (typeof arg === 'object' && arg !== null) {
-                        return JSON.stringify(arg);
-                    }
-                    return String(arg);
-                });
-            };
+                };
 
-            if (config?.args && config.args.length === selectedFunction.inputs.length) {
-                setArgValues(formatSavedArgsForUI(selectedFunction.inputs, config.args));
-            } else {
-                setArgValues(selectedFunction.inputs.map(createDefaultValue));
+                if (config?.args && config.args.length === selectedFunction.inputs.length) {
+                    setArgValues(formatSavedArgsForUI(selectedFunction.inputs, config.args));
+                } else {
+                    setArgValues(selectedFunction.inputs.map(createDefaultValue));
+                }
+            } catch (e: any) {
+                showNotification(`ABI Error: ${e.message}`, 'error');
+                onClose(); // Close modal on ABI error to prevent an unusable state
             }
         }
-    }, [selectedFunction, config]);
+    }, [selectedFunction, config, showNotification, onClose]);
     
     const handleArgChange = (path: (string | number)[], value: string) => {
         setArgValues(prev => updateDeep(prev, path, value));
@@ -111,6 +120,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                 const tupleObject: { [key: string]: any } = {};
                 // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
                 for (const component of ((abiDef as { components: readonly AbiParameter[] }).components)) {
+                    // FIX: Ensure component has a name before using it as a key.
+                    if (!component.name) throw new Error("A tuple component in the ABI is missing a name.");
                     tupleObject[component.name] = convertValue(component, value[component.name]);
                 }
                 return tupleObject;
@@ -177,7 +188,13 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
     const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean) => {
         return inputs.map((input, index) => {
+            // FIX: Ensure path segment is not undefined. For tuples, name is required.
             const currentSegment = isTupleComponent ? input.name : index;
+            if (currentSegment === undefined) {
+                console.error("Malformed ABI: tuple component is missing a name. Cannot render input.", input);
+                return null;
+            }
+            
             const path = [...pathPrefix, currentSegment];
             
             if (input.type === 'tuple') {
@@ -186,7 +203,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                         <legend className="px-2 text-sm font-medium text-gray-300 capitalize">
                             {input.name} <span className="text-gray-400 font-mono text-xs">({input.type})</span>
                         </legend>
-                        {/* FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used. */}
+                        {/* FIX: Correctly access the 'components' property on a tuple-type ABI parameter. */}
                         {renderInputFields((input as { components: readonly AbiParameter[] }).components, path, true)}
                     </fieldset>
                 );
