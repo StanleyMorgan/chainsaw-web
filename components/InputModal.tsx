@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
-import type { Abi, AbiFunction } from 'viem';
+import type { Abi, AbiFunction, AbiParameter } from 'viem';
 
 interface InputModalProps {
   isOpen: boolean;
@@ -12,8 +12,26 @@ interface InputModalProps {
   showNotification: (message: string, type: NotificationData['type']) => void;
 }
 
+// Helper to get a value from a nested object/array using a path
+const getDeep = (obj: any, path: (string | number)[]): any => {
+  return path.reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+};
+
+// Helper to create an immutable copy with a deeply set value
+const updateDeep = (current: any, path: (string | number)[], value: any): any => {
+    if (path.length === 0) {
+        return value;
+    }
+    const [head, ...tail] = path;
+    const newCurrent = Array.isArray(current) ? [...current] : { ...current };
+
+    newCurrent[head as any] = updateDeep(newCurrent[head as any], tail, value);
+    return newCurrent;
+};
+
+
 export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config, onSubmit, onSave, showNotification }) => {
-    const [argValues, setArgValues] = useState<string[]>([]);
+    const [argValues, setArgValues] = useState<any[]>([]);
 
     const selectedFunction = useMemo(() => {
         if (!config || !config.abi) return null;
@@ -35,64 +53,97 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
     useEffect(() => {
         if (selectedFunction) {
-            if (config?.args && config.args.length === selectedFunction.inputs.length) {
-                const initialArgs = config.args.map(arg => {
+            const createDefaultValue = (input: AbiParameter): any => {
+                if (input.type === 'tuple') {
+                    const tupleObj: { [key: string]: any } = {};
+                    // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
+                    ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
+                        tupleObj[component.name] = createDefaultValue(component);
+                    });
+                    return tupleObj;
+                }
+                return '';
+            };
+            
+            const formatSavedArgsForUI = (inputs: readonly AbiParameter[], args: any[]): any[] => {
+                return args.map((arg, index) => {
+                    const input = inputs[index];
+                    if (input.type === 'tuple' && typeof arg === 'object' && arg !== null) {
+                         const formattedTuple: { [key: string]: any } = {};
+                         // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
+                         ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
+                            formattedTuple[component.name] = formatSavedArgsForUI([component], [arg[component.name]])[0];
+                         });
+                         return formattedTuple;
+                    }
                     if (typeof arg === 'object' && arg !== null) {
                         return JSON.stringify(arg);
                     }
                     return String(arg);
                 });
-                setArgValues(initialArgs);
+            };
+
+            if (config?.args && config.args.length === selectedFunction.inputs.length) {
+                setArgValues(formatSavedArgsForUI(selectedFunction.inputs, config.args));
             } else {
-                setArgValues(new Array(selectedFunction.inputs.length).fill(''));
+                setArgValues(selectedFunction.inputs.map(createDefaultValue));
             }
         }
     }, [selectedFunction, config]);
-
-    const handleArgChange = (index: number, value: string) => {
-        const newArgs = [...argValues];
-        newArgs[index] = value;
-        setArgValues(newArgs);
-    };
     
+    const handleArgChange = (path: (string | number)[], value: string) => {
+        setArgValues(prev => updateDeep(prev, path, value));
+    };
+
     const processArgs = (): any[] | null => {
         if (!selectedFunction) {
             showNotification('Could not determine function from ABI.', 'error');
             return null;
         }
-        try {
-            const processedArgs = selectedFunction.inputs.map((input, index) => {
-                const value = argValues[index];
-                if (value === undefined || value === null || value === '') {
-                    throw new Error(`Argument "${input.name || `index ${index}`}" cannot be empty.`);
-                }
 
-                if (input.type.endsWith('[]')) {
-                    try {
-                        const arrayValue = JSON.parse(value);
-                        if (!Array.isArray(arrayValue)) throw new Error();
-                        // viem can handle numeric strings in arrays for BigInts
-                        return arrayValue.map(item => typeof item === 'number' ? BigInt(item).toString() : item);
-                    } catch {
-                        throw new Error(`Argument "${input.name}" must be a valid JSON array string (e.g., ["a", "b"] or [1, 2]).`);
+        const convertValue = (abiDef: AbiParameter, value: any): any => {
+            const trimmedValue = typeof value === 'string' ? value.trim() : value;
+            if (trimmedValue === undefined || trimmedValue === null || trimmedValue === '') {
+                throw new Error(`Argument "${abiDef.name || ''}" cannot be empty.`);
+            }
+
+            if (abiDef.type === 'tuple') {
+                const tupleObject: { [key: string]: any } = {};
+                // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
+                for (const component of ((abiDef as { components: readonly AbiParameter[] }).components)) {
+                    tupleObject[component.name] = convertValue(component, value[component.name]);
+                }
+                return tupleObject;
+            }
+
+            if (abiDef.type.endsWith('[]')) {
+                try {
+                    const arrayValue = JSON.parse(trimmedValue);
+                    if (!Array.isArray(arrayValue)) throw new Error();
+                    const baseType = abiDef.type.slice(0, -2);
+                    if (baseType.startsWith('uint') || baseType.startsWith('int')) {
+                        return arrayValue.map(item => BigInt(item).toString());
                     }
+                    return arrayValue;
+                } catch {
+                    throw new Error(`Argument "${abiDef.name}" must be a valid JSON array string (e.g., ["a", "b"] or [1, 2]).`);
                 }
-                 if (input.type.startsWith('uint') || input.type.startsWith('int')) {
-                    // This is the fix: return a string, not a BigInt object.
-                    // This makes the args array JSON-serializable.
-                    // viem correctly handles string representations for numeric types.
-                    return BigInt(value).toString();
+            }
+             if (abiDef.type.startsWith('uint') || abiDef.type.startsWith('int')) {
+                return BigInt(trimmedValue).toString();
+            }
+            if (abiDef.type === 'bool') {
+                const lowerValue = String(trimmedValue).toLowerCase();
+                if (lowerValue !== 'true' && lowerValue !== 'false') {
+                     throw new Error(`Argument "${abiDef.name}" must be "true" or "false".`);
                 }
-                if (input.type === 'bool') {
-                    const lowerValue = value.toLowerCase();
-                    if (lowerValue !== 'true' && lowerValue !== 'false') {
-                         throw new Error(`Argument "${input.name}" must be "true" or "false".`);
-                    }
-                    return lowerValue === 'true';
-                }
-                return value;
-            });
-            return processedArgs;
+                return lowerValue === 'true';
+            }
+            return trimmedValue;
+        };
+        
+        try {
+            return selectedFunction.inputs.map((input, index) => convertValue(input, argValues[index]));
         } catch (e: any) {
             showNotification(`Error: ${e.message}`, 'error');
             return null;
@@ -124,6 +175,43 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         return type;
     };
 
+    const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean) => {
+        return inputs.map((input, index) => {
+            const currentSegment = isTupleComponent ? input.name : index;
+            const path = [...pathPrefix, currentSegment];
+            
+            if (input.type === 'tuple') {
+                return (
+                    <fieldset key={path.join('.')} className="border border-gray-600 p-3 rounded-md space-y-3">
+                        <legend className="px-2 text-sm font-medium text-gray-300 capitalize">
+                            {input.name} <span className="text-gray-400 font-mono text-xs">({input.type})</span>
+                        </legend>
+                        {/* FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used. */}
+                        {renderInputFields((input as { components: readonly AbiParameter[] }).components, path, true)}
+                    </fieldset>
+                );
+            }
+            
+            const value = getDeep(argValues, path);
+
+            return (
+                <div key={path.join('.')}>
+                    <label htmlFor={`arg-${path.join('-')}`} className="block text-sm font-medium text-gray-300 capitalize">
+                        {input.name} <span className="text-gray-400 font-mono text-xs">({input.type})</span>
+                    </label>
+                    <input
+                        id={`arg-${path.join('-')}`}
+                        type="text"
+                        value={value ?? ''}
+                        onChange={(e) => handleArgChange(path, e.target.value)}
+                        className="w-full mt-1 p-2 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        placeholder={getPlaceholderText(input.type)}
+                    />
+                </div>
+            );
+        });
+    };
+
     if (!isOpen || !config || !selectedFunction) return null;
 
     return (
@@ -133,22 +221,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                     {selectedFunction.name}
                 </h2>
 
-                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                    {selectedFunction.inputs.map((input, index) => (
-                        <div key={index}>
-                            <label htmlFor={`arg-${index}`} className="block text-sm font-medium text-gray-300 capitalize">
-                                {input.name} <span className="text-gray-400 font-mono text-xs">({input.type})</span>
-                            </label>
-                            <input
-                                id={`arg-${index}`}
-                                type="text"
-                                value={argValues[index] || ''}
-                                onChange={(e) => handleArgChange(index, e.target.value)}
-                                className="w-full mt-1 p-2 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                placeholder={getPlaceholderText(input.type)}
-                            />
-                        </div>
-                    ))}
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                   {renderInputFields(selectedFunction.inputs, [], false)}
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
