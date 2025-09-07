@@ -32,6 +32,7 @@ const updateDeep = (current: any, path: (string | number)[], value: any): any =>
 
 export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config, onSubmit, onSave, showNotification }) => {
     const [argValues, setArgValues] = useState<any[]>([]);
+    const [showSavedFields, setShowSavedFields] = useState(false);
 
     const selectedFunction = useMemo(() => {
         if (!config || !config.abi) return null;
@@ -50,6 +51,12 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
             return null;
         }
     }, [config]);
+    
+    useEffect(() => {
+        if (isOpen) {
+            setShowSavedFields(false);
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         if (selectedFunction) {
@@ -184,9 +191,12 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         return type;
     };
 
+    const hasSavedArgs = useMemo(() => {
+        return !!config?.args && Array.isArray(config.args) && config.args.length > 0;
+    }, [config?.args]);
+
     const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean) => {
         return inputs.map((input, index) => {
-            // FIX: Ensure path segment is not undefined. For tuples, name is required.
             const currentSegment = isTupleComponent ? input.name : index;
             if (currentSegment === undefined) {
                 console.error("Malformed ABI: tuple component is missing a name. Cannot render input.", input);
@@ -195,13 +205,19 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
             
             const path = [...pathPrefix, currentSegment];
             
+            const savedValue = getDeep(config?.args, path);
+            const hasSavedValue = savedValue !== undefined && savedValue !== null;
+
+            if (hasSavedValue && !showSavedFields) {
+                return null;
+            }
+            
             if (input.type === 'tuple') {
                 return (
                     <fieldset key={path.join('.')} className="border border-gray-600 p-3 rounded-md space-y-3">
                         <legend className="px-2 text-sm font-medium text-gray-300 capitalize">
                             {input.name} <span className="text-gray-400 font-mono text-xs">({input.type})</span>
                         </legend>
-                        {/* FIX: Correctly access the 'components' property on a tuple-type ABI parameter. */}
                         {renderInputFields((input as { components: readonly AbiParameter[] }).components, path, true)}
                     </fieldset>
                 );
@@ -224,10 +240,12 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                     />
                 </div>
             );
-        });
+        }).filter(Boolean);
     };
 
     if (!isOpen || !config || !selectedFunction) return null;
+    
+    const renderedFields = renderInputFields(selectedFunction.inputs, [], false);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
@@ -236,8 +254,30 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                     {selectedFunction.name}
                 </h2>
 
+                {hasSavedArgs && (
+                    <div className="flex items-center space-x-2 my-2 text-sm">
+                        <input
+                            id="show-saved-fields-toggle"
+                            type="checkbox"
+                            checked={showSavedFields}
+                            onChange={(e) => setShowSavedFields(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-600 cursor-pointer"
+                        />
+                        <label htmlFor="show-saved-fields-toggle" className="text-gray-300 select-none cursor-pointer">
+                            Show pre-filled fields
+                        </label>
+                    </div>
+                )}
+
                 <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                   {renderInputFields(selectedFunction.inputs, [], false)}
+                   {renderedFields.length > 0 
+                        ? renderedFields 
+                        : (
+                            <p className="text-gray-400 text-center py-4">
+                                All fields are pre-filled. Toggle "Show pre-filled fields" to edit them.
+                            </p>
+                        )
+                   }
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
