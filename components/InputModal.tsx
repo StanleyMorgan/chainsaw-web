@@ -181,14 +181,19 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         return type;
     };
 
-    const getVisibleInputs = useCallback((inputs: readonly AbiParameter[], pathPrefix: (string | number)[]): AbiParameter[] => {
+    const getVisibleInputs = useCallback((inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean): AbiParameter[] => {
         let visible: AbiParameter[] = [];
         inputs.forEach((input, index) => {
-            const currentSegment = input.name || index;
-            const path = [...pathPrefix, currentSegment];
+            const currentSegment = isTupleComponent ? input.name : index;
+            if (isTupleComponent && currentSegment === undefined) {
+                console.error("Malformed ABI: tuple component is missing a name. Cannot determine visibility.", input);
+                return;
+            }
+            
+            const path = [...pathPrefix, currentSegment!];
             
             if (input.type === 'tuple') {
-                const visibleChildren = getVisibleInputs((input as { components: readonly AbiParameter[] }).components, path);
+                const visibleChildren = getVisibleInputs((input as { components: readonly AbiParameter[] }).components, path, true);
                 if (visibleChildren.length > 0) {
                     visible.push(input);
                 }
@@ -204,7 +209,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
     useEffect(() => {
         if (isOpen && selectedFunction && config) {
-            const visible = getVisibleInputs(selectedFunction.inputs, []);
+            const visible = getVisibleInputs(selectedFunction.inputs, [], false);
             if (visible.length === 0) {
                  // All fields are pre-filled, so we can submit automatically.
                  // We use the saved args from config, not the UI state.
@@ -267,7 +272,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         }).filter(Boolean);
     };
 
-    if (!isOpen || !config || !selectedFunction || (getVisibleInputs(selectedFunction.inputs, []).length === 0 && isOpen)) {
+    if (!isOpen || !config || !selectedFunction || (getVisibleInputs(selectedFunction.inputs, [], false).length === 0 && isOpen)) {
         return null; // Don't render anything if modal is not open, or if it's auto-submitting
     }
     
