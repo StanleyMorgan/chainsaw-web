@@ -226,7 +226,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
     }, [isOpen, selectedFunction, config, getVisibleInputs, processArgs, onSubmit, onClose]);
 
 
-    const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean) => {
+    const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean): (React.ReactElement | null)[] => {
         return inputs.map((input, index) => {
             const currentSegment = isTupleComponent ? input.name : index;
             if (currentSegment === undefined) {
@@ -236,22 +236,28 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
             
             const path = [...pathPrefix, currentSegment];
             
+            if (input.type === 'tuple') {
+                const components = (input as { components: readonly AbiParameter[] }).components;
+                const childFields = renderInputFields(components, path, true).filter(Boolean);
+
+                if (childFields.length > 0) {
+                    return (
+                        <fieldset key={path.join('.')} className="border border-gray-600 p-3 rounded-md space-y-3">
+                            <legend className="px-2 text-sm font-medium text-gray-300 capitalize">
+                                {input.name} <span className="text-gray-400 font-mono text-xs">({input.type})</span>
+                            </legend>
+                            {childFields}
+                        </fieldset>
+                    );
+                }
+                return null;
+            }
+            
             const savedValue = getDeep(config?.args, path);
             if (!isValueEmpty(savedValue)) {
                 return null; // Don't render pre-filled fields
             }
-            
-            if (input.type === 'tuple') {
-                return (
-                    <fieldset key={path.join('.')} className="border border-gray-600 p-3 rounded-md space-y-3">
-                        <legend className="px-2 text-sm font-medium text-gray-300 capitalize">
-                            {input.name} <span className="text-gray-400 font-mono text-xs">({input.type})</span>
-                        </legend>
-                        {renderInputFields((input as { components: readonly AbiParameter[] }).components, path, true)}
-                    </fieldset>
-                );
-            }
-            
+
             const value = getDeep(argValues, path);
 
             return (
@@ -269,14 +275,20 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                     />
                 </div>
             );
-        }).filter(Boolean);
+        });
     };
 
-    if (!isOpen || !config || !selectedFunction || (getVisibleInputs(selectedFunction.inputs, [], false).length === 0 && isOpen)) {
-        return null; // Don't render anything if modal is not open, or if it's auto-submitting
+    if (!isOpen || !config || !selectedFunction) {
+        return null;
     }
     
-    const renderedFields = renderInputFields(selectedFunction.inputs, [], false);
+    const renderedFields = renderInputFields(selectedFunction.inputs, [], false).filter(Boolean);
+
+    if (renderedFields.length === 0 && isOpen) {
+        // This handles the case where the modal might briefly flash before auto-submitting.
+        // Or if for some reason auto-submit fails, it ensures we don't show an empty modal.
+        return null;
+    }
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
