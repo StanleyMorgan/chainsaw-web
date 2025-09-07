@@ -6,7 +6,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
 import { PlusIcon } from './icons';
-import { encodeFunctionData, type Abi, type AbiFunction } from 'viem';
+import { encodeFunctionData, type Abi, type AbiFunction, type AbiParameter } from 'viem';
 
 interface MainViewProps {
   settings: Settings;
@@ -199,8 +199,44 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             );
 
             if (functionAbi && functionAbi.inputs && functionAbi.inputs.length > 0) {
-                setCurrentConfigForInput({ key, config });
-                setIsInputModalOpen(true);
+                const areAllArgsPreFilled = (inputs: readonly AbiParameter[], args: any[] | undefined): boolean => {
+                    if (!args || inputs.length !== args.length) {
+                        return false;
+                    }
+
+                    return inputs.every((input, index) => {
+                        const value = args[index];
+
+                        if (input.type === 'tuple') {
+                            const components = (input as { components: readonly AbiParameter[] }).components;
+                            if (typeof value !== 'object' || value === null) {
+                                return false;
+                            }
+                            
+                            const componentValues = components.map(c => {
+                                if (!c.name) {
+                                    throw new Error("A tuple component in the ABI is missing a name.");
+                                }
+                                return value[c.name];
+                            });
+
+                            return areAllArgsPreFilled(components, componentValues);
+                        }
+
+                        return value !== undefined && value !== null && value !== '';
+                    });
+                };
+                
+                try {
+                    if (areAllArgsPreFilled(functionAbi.inputs, config.args)) {
+                        await executeTransaction(config, config.args);
+                    } else {
+                        setCurrentConfigForInput({ key, config });
+                        setIsInputModalOpen(true);
+                    }
+                } catch (e: any) {
+                    showNotification(`ABI Error: ${e.message}`, 'error');
+                }
                 return;
             }
         } catch (error: any) {

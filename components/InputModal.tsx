@@ -32,7 +32,6 @@ const updateDeep = (current: any, path: (string | number)[], value: any): any =>
 
 export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config, onSubmit, onSave, showNotification }) => {
     const [argValues, setArgValues] = useState<any[]>([]);
-    const [showSavedFields, setShowSavedFields] = useState(false);
 
     const selectedFunction = useMemo(() => {
         if (!config || !config.abi) return null;
@@ -52,12 +51,6 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         }
     }, [config]);
     
-    useEffect(() => {
-        if (isOpen) {
-            setShowSavedFields(false);
-        }
-    }, [isOpen]);
-
     useEffect(() => {
         if (selectedFunction) {
             try {
@@ -191,10 +184,6 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         return type;
     };
 
-    const hasSavedArgs = useMemo(() => {
-        return !!config?.args && Array.isArray(config.args) && config.args.length > 0;
-    }, [config?.args]);
-
     const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean) => {
         return inputs.map((input, index) => {
             const currentSegment = isTupleComponent ? input.name : index;
@@ -206,9 +195,9 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
             const path = [...pathPrefix, currentSegment];
             
             const savedValue = getDeep(config?.args, path);
-            const hasSavedValue = savedValue !== undefined && savedValue !== null;
+            const isPreFilled = savedValue !== undefined && savedValue !== null && savedValue !== '';
 
-            if (hasSavedValue && !showSavedFields) {
+            if (isPreFilled) {
                 return null;
             }
             
@@ -254,30 +243,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                     {selectedFunction.name}
                 </h2>
 
-                {hasSavedArgs && (
-                    <div className="flex items-center space-x-2 my-2 text-sm">
-                        <input
-                            id="show-saved-fields-toggle"
-                            type="checkbox"
-                            checked={showSavedFields}
-                            onChange={(e) => setShowSavedFields(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-600 cursor-pointer"
-                        />
-                        <label htmlFor="show-saved-fields-toggle" className="text-gray-300 select-none cursor-pointer">
-                            Show pre-filled fields
-                        </label>
-                    </div>
-                )}
-
                 <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                   {renderedFields.length > 0 
-                        ? renderedFields 
-                        : (
-                            <p className="text-gray-400 text-center py-4">
-                                All fields are pre-filled. Toggle "Show pre-filled fields" to edit them.
-                            </p>
-                        )
-                   }
+                   {renderedFields}
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
