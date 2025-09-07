@@ -311,7 +311,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                     {selectedFunction.name}
                 </h2>
 
-                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto p-4">
                    {renderedFields}
                 </div>
 
