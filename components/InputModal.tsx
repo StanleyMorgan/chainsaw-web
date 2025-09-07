@@ -166,9 +166,49 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         }
     };
 
+    const checkVisibleInputs = useCallback((
+        inputs: readonly AbiParameter[], 
+        argsSource: any[] | undefined,
+        pathPrefix: (string | number)[], 
+        isTupleComponent: boolean
+    ): AbiParameter[] => {
+        let visible: AbiParameter[] = [];
+        inputs.forEach((input, index) => {
+            const currentSegment = isTupleComponent ? input.name : index;
+            if (isTupleComponent && currentSegment === undefined) {
+                console.error("Malformed ABI: tuple component is missing a name. Cannot determine visibility.", input);
+                return;
+            }
+            
+            const path = [...pathPrefix, currentSegment!];
+            
+            if (input.type === 'tuple') {
+                const visibleChildren = checkVisibleInputs((input as { components: readonly AbiParameter[] }).components, argsSource, path, true);
+                if (visibleChildren.length > 0) {
+                    visible.push(input);
+                }
+            } else {
+                const value = getDeep(argsSource, path);
+                if (isValueEmpty(value)) {
+                    visible.push(input);
+                }
+            }
+        });
+        return visible;
+    }, []);
+
     const handleSave = () => {
         onSave(argValues);
         showNotification('Inputs saved as default for this button.', 'success');
+        
+        if (selectedFunction) {
+            // Check if the values we just saved fill all the required inputs
+            const visibleAfterSave = checkVisibleInputs(selectedFunction.inputs, argValues, [], false);
+            if (visibleAfterSave.length === 0) {
+                // If the form is now complete, just close the modal without submitting.
+                onClose();
+            }
+        }
     };
     
     const getPlaceholderText = (type: string): string => {
@@ -181,35 +221,9 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         return type;
     };
 
-    const getVisibleInputs = useCallback((inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean): AbiParameter[] => {
-        let visible: AbiParameter[] = [];
-        inputs.forEach((input, index) => {
-            const currentSegment = isTupleComponent ? input.name : index;
-            if (isTupleComponent && currentSegment === undefined) {
-                console.error("Malformed ABI: tuple component is missing a name. Cannot determine visibility.", input);
-                return;
-            }
-            
-            const path = [...pathPrefix, currentSegment!];
-            
-            if (input.type === 'tuple') {
-                const visibleChildren = getVisibleInputs((input as { components: readonly AbiParameter[] }).components, path, true);
-                if (visibleChildren.length > 0) {
-                    visible.push(input);
-                }
-            } else {
-                const savedValue = getDeep(config?.args, path);
-                if (isValueEmpty(savedValue)) {
-                    visible.push(input);
-                }
-            }
-        });
-        return visible;
-    }, [config?.args]);
-
     useEffect(() => {
         if (isOpen && selectedFunction && config) {
-            const visible = getVisibleInputs(selectedFunction.inputs, [], false);
+            const visible = checkVisibleInputs(selectedFunction.inputs, config.args, [], false);
             if (visible.length === 0) {
                  // All fields are pre-filled, so we can submit automatically.
                  // We use the saved args from config, not the UI state.
@@ -223,7 +237,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                 }
             }
         }
-    }, [isOpen, selectedFunction, config, getVisibleInputs, processArgs, onSubmit, onClose]);
+    }, [isOpen, selectedFunction, config, checkVisibleInputs, processArgs, onSubmit, onClose]);
 
 
     const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean): (React.ReactElement | null)[] => {
