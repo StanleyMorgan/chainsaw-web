@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
 import type { Abi, AbiFunction, AbiParameter } from 'viem';
@@ -29,6 +29,10 @@ const updateDeep = (current: any, path: (string | number)[], value: any): any =>
     return newCurrent;
 };
 
+// Determines if a saved value should be considered empty and require user input.
+const isValueEmpty = (value: any): boolean => {
+    return value == null || value === '';
+};
 
 export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config, onSubmit, onSave, showNotification }) => {
     const [argValues, setArgValues] = useState<any[]>([]);
@@ -50,61 +54,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
             return null;
         }
     }, [config]);
-    
-    useEffect(() => {
-        if (selectedFunction) {
-            try {
-                const createDefaultValue = (input: AbiParameter): any => {
-                    if (input.type === 'tuple') {
-                        const tupleObj: { [key: string]: any } = {};
-                        // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
-                        ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
-                            // FIX: Ensure component has a name before using it as a key.
-                            if (!component.name) throw new Error("A tuple component in the ABI is missing a name.");
-                            tupleObj[component.name] = createDefaultValue(component);
-                        });
-                        return tupleObj;
-                    }
-                    return '';
-                };
-                
-                const formatSavedArgsForUI = (inputs: readonly AbiParameter[], args: any[]): any[] => {
-                    return args.map((arg, index) => {
-                        const input = inputs[index];
-                        if (input.type === 'tuple' && typeof arg === 'object' && arg !== null) {
-                             const formattedTuple: { [key: string]: any } = {};
-                             // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
-                             ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
-                                // FIX: Ensure component has a name before using it as a key.
-                                if (!component.name) throw new Error("A tuple component in the ABI is missing a name.");
-                                formattedTuple[component.name] = formatSavedArgsForUI([component], [arg[component.name]])[0];
-                             });
-                             return formattedTuple;
-                        }
-                        if (typeof arg === 'object' && arg !== null) {
-                            return JSON.stringify(arg);
-                        }
-                        return String(arg ?? '');
-                    });
-                };
 
-                if (config?.args && config.args.length === selectedFunction.inputs.length) {
-                    setArgValues(formatSavedArgsForUI(selectedFunction.inputs, config.args));
-                } else {
-                    setArgValues(selectedFunction.inputs.map(createDefaultValue));
-                }
-            } catch (e: any) {
-                showNotification(`ABI Error: ${e.message}`, 'error');
-                onClose(); // Close modal on ABI error to prevent an unusable state
-            }
-        }
-    }, [selectedFunction, config, showNotification, onClose]);
-    
-    const handleArgChange = (path: (string | number)[], value: string) => {
-        setArgValues(prev => updateDeep(prev, path, value));
-    };
-
-    const processArgs = (): any[] | null => {
+    const processArgs = useCallback((valuesToProcess: any[]): any[] | null => {
         if (!selectedFunction) {
             showNotification('Could not determine function from ABI.', 'error');
             return null;
@@ -118,9 +69,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
             if (abiDef.type === 'tuple') {
                 const tupleObject: { [key: string]: any } = {};
-                // FIX: Correctly access the 'components' property on a tuple-type ABI parameter. TypeScript was failing to narrow the type, so an explicit cast is used.
                 for (const component of ((abiDef as { components: readonly AbiParameter[] }).components)) {
-                    // FIX: Ensure component has a name before using it as a key.
                     if (!component.name) throw new Error("A tuple component in the ABI is missing a name.");
                     tupleObject[component.name] = convertValue(component, value[component.name]);
                 }
@@ -154,22 +103,70 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         };
         
         try {
-            return selectedFunction.inputs.map((input, index) => convertValue(input, argValues[index]));
+            return selectedFunction.inputs.map((input, index) => convertValue(input, valuesToProcess[index]));
         } catch (e: any) {
             showNotification(`Error: ${e.message}`, 'error');
             return null;
         }
+    }, [selectedFunction, showNotification]);
+    
+    useEffect(() => {
+        if (selectedFunction) {
+            try {
+                const createDefaultValue = (input: AbiParameter): any => {
+                    if (input.type === 'tuple') {
+                        const tupleObj: { [key: string]: any } = {};
+                        ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
+                            if (!component.name) throw new Error("A tuple component in the ABI is missing a name.");
+                            tupleObj[component.name] = createDefaultValue(component);
+                        });
+                        return tupleObj;
+                    }
+                    return '';
+                };
+                
+                const formatSavedArgsForUI = (inputs: readonly AbiParameter[], args: any[]): any[] => {
+                    return args.map((arg, index) => {
+                        const input = inputs[index];
+                        if (input.type === 'tuple' && typeof arg === 'object' && arg !== null) {
+                             const formattedTuple: { [key: string]: any } = {};
+                             ((input as { components: readonly AbiParameter[] }).components).forEach((component) => {
+                                if (!component.name) throw new Error("A tuple component in the ABI is missing a name.");
+                                formattedTuple[component.name] = formatSavedArgsForUI([component], [arg[component.name]])[0];
+                             });
+                             return formattedTuple;
+                        }
+                        if (typeof arg === 'object' && arg !== null) {
+                            return JSON.stringify(arg);
+                        }
+                        return String(arg ?? '');
+                    });
+                };
+
+                if (config?.args && config.args.length === selectedFunction.inputs.length) {
+                    setArgValues(formatSavedArgsForUI(selectedFunction.inputs, config.args));
+                } else {
+                    setArgValues(selectedFunction.inputs.map(createDefaultValue));
+                }
+            } catch (e: any) {
+                showNotification(`ABI Error: ${e.message}`, 'error');
+                onClose();
+            }
+        }
+    }, [selectedFunction, config, showNotification, onClose]);
+    
+    const handleArgChange = (path: (string | number)[], value: string) => {
+        setArgValues(prev => updateDeep(prev, path, value));
     };
 
     const handleSubmit = () => {
-        const processedArgs = processArgs();
+        const processedArgs = processArgs(argValues);
         if (processedArgs) {
             onSubmit(processedArgs);
         }
     };
 
     const handleSave = () => {
-        // Don't validate, just save the current UI state.
         onSave(argValues);
         showNotification('Inputs saved as default for this button.', 'success');
     };
@@ -184,6 +181,46 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         return type;
     };
 
+    const getVisibleInputs = useCallback((inputs: readonly AbiParameter[], pathPrefix: (string | number)[]): AbiParameter[] => {
+        let visible: AbiParameter[] = [];
+        inputs.forEach((input, index) => {
+            const currentSegment = input.name || index;
+            const path = [...pathPrefix, currentSegment];
+            
+            if (input.type === 'tuple') {
+                const visibleChildren = getVisibleInputs((input as { components: readonly AbiParameter[] }).components, path);
+                if (visibleChildren.length > 0) {
+                    visible.push(input);
+                }
+            } else {
+                const savedValue = getDeep(config?.args, path);
+                if (isValueEmpty(savedValue)) {
+                    visible.push(input);
+                }
+            }
+        });
+        return visible;
+    }, [config?.args]);
+
+    useEffect(() => {
+        if (isOpen && selectedFunction && config) {
+            const visible = getVisibleInputs(selectedFunction.inputs, []);
+            if (visible.length === 0) {
+                 // All fields are pre-filled, so we can submit automatically.
+                 // We use the saved args from config, not the UI state.
+                const processedArgs = processArgs(config.args || []);
+                if (processedArgs) {
+                    onSubmit(processedArgs);
+                } else {
+                    // If processing fails, it's safer to close the modal
+                    // than to get stuck in a loop. A notification will be shown.
+                    onClose();
+                }
+            }
+        }
+    }, [isOpen, selectedFunction, config, getVisibleInputs, processArgs, onSubmit, onClose]);
+
+
     const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean) => {
         return inputs.map((input, index) => {
             const currentSegment = isTupleComponent ? input.name : index;
@@ -195,10 +232,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
             const path = [...pathPrefix, currentSegment];
             
             const savedValue = getDeep(config?.args, path);
-            const isPreFilled = savedValue !== undefined && savedValue !== null && savedValue !== '';
-
-            if (isPreFilled) {
-                return null;
+            if (!isValueEmpty(savedValue)) {
+                return null; // Don't render pre-filled fields
             }
             
             if (input.type === 'tuple') {
@@ -232,7 +267,9 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         }).filter(Boolean);
     };
 
-    if (!isOpen || !config || !selectedFunction) return null;
+    if (!isOpen || !config || !selectedFunction || (getVisibleInputs(selectedFunction.inputs, []).length === 0 && isOpen)) {
+        return null; // Don't render anything if modal is not open, or if it's auto-submitting
+    }
     
     const renderedFields = renderInputFields(selectedFunction.inputs, [], false);
 
