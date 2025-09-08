@@ -10,7 +10,9 @@ import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiProvider, useAccount } from 'wagmi';
 // FIX: Correctly import chains from 'viem/chains' as required by recent versions of wagmi and RainbowKit.
 import { 
-  sepolia
+  mainnet,
+  base,
+  celo
 } from 'viem/chains';
 // Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
 // FIX: Split the import for QueryClient to resolve a module resolution error, importing it directly from @tanstack/query-core.
@@ -28,7 +30,9 @@ const config = getDefaultConfig({
   appIcon: 'https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png',
   projectId: projectId,
   chains: [
-    sepolia
+    mainnet,
+    base,
+    celo
   ],
   ssr: false, // If your dApp uses server side rendering (SSR)
 });

@@ -84,14 +84,12 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         return;
     }
 
-    // FIX: Re-assign `client` to a new constant to prevent TypeScript's control flow
-    // analysis from incorrectly inferring its type as `never` inside a `try...catch` block.
-    const checkedClient = client;
-
     // 1. Switch network if necessary
     if (chainId !== config.id) {
         try {
-            await checkedClient.request({
+            // FIX: Use non-null assertion operator (!) to tell TypeScript that `client` is not null here,
+            // which can be incorrectly inferred as `never` inside a try/catch block.
+            await client!.request({
                 method: 'wallet_switchEthereumChain',
                 params: [{ chainId: numberToHex(config.id) }],
             });
@@ -105,7 +103,8 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                         return;
                     }
                     
-                    await checkedClient.request({
+                    // FIX: Use non-null assertion operator (!) to tell TypeScript that `client` is not null here.
+                    await client!.request({
                         method: 'wallet_addEthereumChain',
                         params: [{
                             chainId: numberToHex(config.id),
