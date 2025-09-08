@@ -12,7 +12,20 @@ import { WagmiProvider, useAccount } from 'wagmi';
 import { 
   mainnet,
   base,
-  celo
+  celo,
+  ink,
+  linea,
+  lisk,
+  mode,
+  monadTestnet,
+  optimism,
+  plume,
+  sei,
+  somniaTestnet,
+  soneium,
+  superseed,
+  unichain,
+  worldchain
 } from 'viem/chains';
 // Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
 // FIX: Split the import for QueryClient to resolve a module resolution error, importing it directly from @tanstack/query-core.
@@ -32,7 +45,20 @@ const config = getDefaultConfig({
   chains: [
     mainnet,
     base,
-    celo
+    celo,
+    ink,
+    linea,
+    lisk,
+    mode,
+    monadTestnet,
+    optimism,
+    plume,
+    sei,
+    somniaTestnet,
+    soneium,
+    superseed,
+    unichain,
+    worldchain
   ],
   ssr: false, // If your dApp uses server side rendering (SSR)
 });
