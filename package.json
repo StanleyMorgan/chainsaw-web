@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "print-deps": "npm list chalk strip-ansi color-convert color-name is-core-module error-ex has-ansi",
+    "build": "npm run print-deps && tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
