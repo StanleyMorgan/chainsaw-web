@@ -8,7 +8,8 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
 import { PlusIcon } from './icons';
-import { encodeFunctionData, type Abi, type AbiFunction, numberToHex } from 'viem';
+// FIX: `numberToHex` is no longer needed with the updated `switchChain` and `addChain` methods.
+import { encodeFunctionData, type Abi, type AbiFunction } from 'viem';
 
 interface MainViewProps {
   settings: Settings;
@@ -96,36 +97,42 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     showNotification(`Button "${key}" saved successfully!`, 'success');
   };
   
+  // FIX: Replace deprecated `client.request` with `client.switchChain` and `client.addChain` from wagmi/viem.
   const switchNetworkIfNeeded = useCallback(async (config: ButtonConfig) => {
     if (!client || chainId === config.id) {
         return true;
     }
 
     try {
-        await client.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: numberToHex(config.id) }],
-        });
+        await client.switchChain({ id: config.id });
         return true;
     } catch (switchError: any) {
         const code = switchError.cause?.code || switchError.code;
-        if (code === 4902) {
+        if (code === 4902) { // Chain not found
             try {
                 if (!config.chainName || !config.rpcUrls?.length || !config.nativeCurrency) {
                     showNotification('Chain not found in wallet. Please add it manually or provide complete chain details in the button config.', 'error');
                     return false;
                 }
                 
-                await client.request({
-                    method: 'wallet_addEthereumChain',
-                    params: [{
-                        chainId: numberToHex(config.id),
-                        chainName: config.chainName,
+                await client.addChain({
+                    chain: {
+                        id: config.id,
+                        name: config.chainName,
                         nativeCurrency: config.nativeCurrency,
-                        rpcUrls: config.rpcUrls,
-                        blockExplorerUrls: config.blockExplorerUrls,
-                    }],
+                        rpcUrls: {
+                            default: { http: config.rpcUrls },
+                            public: { http: config.rpcUrls },
+                        },
+                        blockExplorers: config.blockExplorerUrls?.length ? {
+                            default: { name: `${config.chainName} Explorer`, url: config.blockExplorerUrls[0] },
+                        } : undefined,
+                    },
                 });
+
+                // Attempt to switch again after adding.
+                await client.switchChain({ id: config.id });
+
                 return true;
             } catch (addError: any) {
                 const message = addError.message?.includes('User rejected the request')
@@ -359,30 +366,8 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
               <h3 className="text-lg font-bold mb-4 text-gray-200 border-b border-gray-700 pb-2">
                 Action Description
               </h3>
-              <div className="h-48 overflow-y-auto text-gray-300 font-mono text-sm">
+              <div className="h-24 overflow-y-auto text-gray-300 font-mono text-sm">
                   <p className="whitespace-pre-wrap">{hoveredDescription}</p>
-              </div>
-            </div>
-            
-            {/* Read Result Panel */}
-            <div className="bg-gray-800 p-6 rounded-lg self-start w-full">
-              <h3 className="text-lg font-bold mb-4 text-gray-200 border-b border-gray-700 pb-2 flex justify-between items-center">
-                <span>Read Result</span>
-                 {(readData !== null || readError !== null) && (
-                    <button
-                        onClick={() => { setReadData(null); setReadError(null); }}
-                        className="text-gray-400 hover:text-white text-2xl leading-none"
-                        aria-label="Clear result"
-                    >
-                        &times;
-                    </button>
-                )}
-              </h3>
-              <div className="h-48 overflow-y-auto text-gray-300 font-mono text-sm" aria-live="polite">
-                  {isReading && <p className="animate-pulse">Reading from contract...</p>}
-                  {readError && <pre className="text-red-400 whitespace-pre-wrap">{readError}</pre>}
-                  {readData !== null && <pre className="whitespace-pre-wrap">{formatReadData(readData)}</pre>}
-                  {!isReading && readError === null && readData === null && <p className="text-gray-500">The result of a read-only call will appear here.</p>}
               </div>
             </div>
 
@@ -394,6 +379,15 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
               <PlusIcon className="w-5 h-5 mr-2" />
               Add Button
             </button>
+            
+            {/* Read Result Panel */}
+            <div className="bg-gray-800 p-4 rounded-lg self-start w-full">
+              <div className="h-24 overflow-y-auto text-gray-300 font-mono text-sm" aria-live="polite">
+                  {isReading && <p className="animate-pulse">Reading from contract...</p>}
+                  {readError && <pre className="text-red-400 whitespace-pre-wrap">{readError}</pre>}
+                  {readData !== null && <pre className="whitespace-pre-wrap">{formatReadData(readData)}</pre>}
+              </div>
+            </div>
           </div>
 
 
