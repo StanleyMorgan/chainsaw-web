@@ -2,7 +2,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
-import { useAccount, useSendTransaction, useConnectorClient } from 'wagmi';
+import { useAccount, useSendTransaction, useConnectorClient, useConfig } from 'wagmi';
+import { readContract } from 'wagmi/actions';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
@@ -35,15 +36,32 @@ const ActionButton: React.FC<{
     );
 };
 
+const formatReadData = (data: any): string => {
+  if (data === null || data === undefined) {
+    return 'null';
+  }
+  return JSON.stringify(
+    data,
+    (key, value) => (typeof value === 'bigint' ? value.toString() : value),
+    2
+  );
+};
+
+
 export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, onReorder, showNotification }) => {
   const { address, chainId, isConnected } = useAccount();
   const { data: client } = useConnectorClient();
   const { sendTransaction } = useSendTransaction();
+  const wagmiConfig = useConfig();
+
   const [hoveredDescription, setHoveredDescription] = useState<string>('Hover over a button to see its description.');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [currentConfigForInput, setCurrentConfigForInput] = useState<{ key: string; config: ButtonConfig } | null>(null);
-
+  
+  const [readData, setReadData] = useState<any>(null);
+  const [isReading, setIsReading] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
 
   const draggedItemKey = useRef<string | null>(null);
 
@@ -78,67 +96,109 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     showNotification(`Button "${key}" saved successfully!`, 'success');
   };
   
+  const switchNetworkIfNeeded = useCallback(async (config: ButtonConfig) => {
+    if (!client || chainId === config.id) {
+        return true;
+    }
+
+    try {
+        await client.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: numberToHex(config.id) }],
+        });
+        return true;
+    } catch (switchError: any) {
+        const code = switchError.cause?.code || switchError.code;
+        if (code === 4902) {
+            try {
+                if (!config.chainName || !config.rpcUrls?.length || !config.nativeCurrency) {
+                    showNotification('Chain not found in wallet. Please add it manually or provide complete chain details in the button config.', 'error');
+                    return false;
+                }
+                
+                await client.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: numberToHex(config.id),
+                        chainName: config.chainName,
+                        nativeCurrency: config.nativeCurrency,
+                        rpcUrls: config.rpcUrls,
+                        blockExplorerUrls: config.blockExplorerUrls,
+                    }],
+                });
+                return true;
+            } catch (addError: any) {
+                const message = addError.message?.includes('User rejected the request')
+                    ? 'Request to add network rejected.'
+                    : `Failed to add network: ${addError.message?.split(/[\(.]/)[0]}`;
+                showNotification(message, 'error');
+                console.error("Add Network Error:", addError);
+                return false;
+            }
+        } else {
+            const message = switchError.message?.includes('User rejected the request')
+                ? 'Request to switch network rejected.'
+                : `Failed to switch network: ${switchError.message?.split(/[\(.]/)[0]}`;
+            showNotification(message, 'error');
+            console.error("Switch Network Error:", switchError);
+            return false;
+        }
+    }
+  }, [chainId, client, showNotification]);
+
+  const executeRead = useCallback(async (config: ButtonConfig, args: any[] = []) => {
+    if (!isConnected || !address) return;
+    
+    const networkReady = await switchNetworkIfNeeded(config);
+    if (!networkReady) return;
+
+    setIsReading(true);
+    setReadData(null);
+    setReadError(null);
+
+    try {
+      const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
+      let functionName = config.functionName;
+
+      if (!functionName) {
+        const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
+        if (functionsInAbi.length === 1) {
+            functionName = functionsInAbi[0].name;
+        } else {
+            throw new Error('"functionName" is missing and could not be inferred.');
+        }
+      }
+      
+      // FIX: Explicitly set authorizationList to undefined to address a type incompatibility
+      // with recent versions of wagmi/viem where this optional property is incorrectly required.
+      const data = await readContract(wagmiConfig, {
+        address: config.address as `0x${string}`,
+        abi,
+        functionName,
+        args,
+        chainId: config.id,
+        authorizationList: undefined,
+      });
+
+      setReadData(data);
+    } catch (error: any) {
+      const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
+      setReadError(`Read failed: ${message}`);
+      console.error("Read Contract Error:", error);
+    } finally {
+      setIsReading(false);
+    }
+  }, [isConnected, address, showNotification, wagmiConfig, switchNetworkIfNeeded]);
+  
   const executeTransaction = useCallback(async (config: ButtonConfig, args: any[] = []) => {
     if (!isConnected || !address || !client) {
         showNotification('Please connect your wallet first.', 'info');
         return;
     }
+    
+    const networkReady = await switchNetworkIfNeeded(config);
+    if (!networkReady) return;
 
-    // 1. Switch network if necessary
-    if (chainId !== config.id) {
-        try {
-            // FIX: Use non-null assertion operator (!) to tell TypeScript that `client` is not null here,
-            // which can be incorrectly inferred as `never` inside a try/catch block.
-            await client!.request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: numberToHex(config.id) }],
-            });
-        } catch (switchError: any) {
-            // Error code 4902 indicates the chain has not been added to MetaMask.
-            const code = switchError.cause?.code || switchError.code;
-            if (code === 4902) {
-                try {
-                    if (!config.chainName || !config.rpcUrls?.length || !config.nativeCurrency) {
-                        showNotification('Chain not found in wallet. Please add it manually or provide complete chain details in the button config.', 'error');
-                        return;
-                    }
-                    
-                    // FIX: Use non-null assertion operator (!) to tell TypeScript that `client` is not null here.
-                    await client!.request({
-                        method: 'wallet_addEthereumChain',
-                        params: [{
-                            chainId: numberToHex(config.id),
-                            chainName: config.chainName,
-                            nativeCurrency: config.nativeCurrency,
-                            rpcUrls: config.rpcUrls,
-                            blockExplorerUrls: config.blockExplorerUrls,
-                        }],
-                    });
-                    
-                    // After adding, the wallet usually switches automatically. No need to call switch again,
-                    // which would fail for custom chains anyway.
-
-                } catch (addError: any) {
-                    const message = addError.message?.includes('User rejected the request')
-                        ? 'Request to add network rejected.'
-                        : `Failed to add network: ${addError.message?.split(/[\(.]/)[0]}`;
-                    showNotification(message, 'error');
-                    console.error("Add Network Error:", addError);
-                    return;
-                }
-            } else {
-                const message = switchError.message?.includes('User rejected the request')
-                    ? 'Request to switch network rejected.'
-                    : `Failed to switch network: ${switchError.message?.split(/[\(.]/)[0]}`;
-                showNotification(message, 'error');
-                console.error("Switch Network Error:", switchError);
-                return;
-            }
-        }
-    }
-
-
-    // 2. Prepare transaction data
     let transactionData: `0x${string}` | undefined;
     try {
         if (config.abi) {
@@ -154,23 +214,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                 }
             }
             
-            const functionAbi = abi.find(
-                (item): item is AbiFunction => item.type === 'function' && item.name === functionName
-            );
-
-            if (!functionAbi) {
-                throw new Error(`Function "${functionName}" not found in the provided ABI.`);
-            }
-            
-            if ((functionAbi.inputs?.length || 0) !== args.length) {
-                throw new Error(`Function "${functionName}" expects ${functionAbi.inputs?.length || 0} arguments, but ${args.length} were provided.`);
-            }
-            
-            transactionData = encodeFunctionData({
-                abi,
-                functionName,
-                args,
-            });
+            transactionData = encodeFunctionData({ abi, functionName, args });
         } else if (config.data) {
             transactionData = config.data as `0x${string}`;
         } else {
@@ -183,7 +227,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         return;
     }
     
-    // 3. Send transaction
     sendTransaction({
         to: config.address as `0x${string}`,
         value: config.value ? BigInt(config.value) : undefined,
@@ -202,12 +245,16 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             console.error("Transaction Error:", error);
         }
     });
-  }, [isConnected, address, showNotification, sendTransaction, chainId, client]);
+  }, [isConnected, address, showNotification, sendTransaction, client, switchNetworkIfNeeded]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
         showNotification('Please connect your wallet first.', 'info');
         return;
+    }
+    
+    if (config.readOnly) {
+      setHoveredDescription(config.description || 'No description available for this action.');
     }
 
     if (config.abi) {
@@ -235,16 +282,24 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         }
     }
     
-    await executeTransaction(config, config.args);
+    if (config.readOnly) {
+      await executeRead(config, config.args || []);
+    } else {
+      await executeTransaction(config, config.args || []);
+    }
   };
 
   const handleInputModalSubmit = useCallback((args: any[]) => {
     if (currentConfigForInput) {
-        executeTransaction(currentConfigForInput.config, args);
+        if (currentConfigForInput.config.readOnly) {
+          executeRead(currentConfigForInput.config, args);
+        } else {
+          executeTransaction(currentConfigForInput.config, args);
+        }
     }
     setIsInputModalOpen(false);
     setCurrentConfigForInput(null);
-  }, [currentConfigForInput, executeTransaction]);
+  }, [currentConfigForInput, executeTransaction, executeRead]);
 
   const handleInputModalSave = useCallback((args: any[]) => {
     if (!currentConfigForInput) return;
@@ -306,6 +361,28 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
               </h3>
               <div className="h-48 overflow-y-auto text-gray-300 font-mono text-sm">
                   <p className="whitespace-pre-wrap">{hoveredDescription}</p>
+              </div>
+            </div>
+            
+            {/* Read Result Panel */}
+            <div className="bg-gray-800 p-6 rounded-lg self-start w-full">
+              <h3 className="text-lg font-bold mb-4 text-gray-200 border-b border-gray-700 pb-2 flex justify-between items-center">
+                <span>Read Result</span>
+                 {(readData !== null || readError !== null) && (
+                    <button
+                        onClick={() => { setReadData(null); setReadError(null); }}
+                        className="text-gray-400 hover:text-white text-2xl leading-none"
+                        aria-label="Clear result"
+                    >
+                        &times;
+                    </button>
+                )}
+              </h3>
+              <div className="h-48 overflow-y-auto text-gray-300 font-mono text-sm" aria-live="polite">
+                  {isReading && <p className="animate-pulse">Reading from contract...</p>}
+                  {readError && <pre className="text-red-400 whitespace-pre-wrap">{readError}</pre>}
+                  {readData !== null && <pre className="whitespace-pre-wrap">{formatReadData(readData)}</pre>}
+                  {!isReading && readError === null && readData === null && <p className="text-gray-500">The result of a read-only call will appear here.</p>}
               </div>
             </div>
 

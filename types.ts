@@ -10,6 +10,7 @@ export interface ButtonConfig {
   abi?: any;
   functionName?: string;
   args?: any[];
+  readOnly?: boolean;
   // Optional: for adding a new network
   chainName?: string;
   nativeCurrency?: {
@@ -22,7 +23,7 @@ export interface ButtonConfig {
 }
 
 export interface Settings {
-  [key: string]: ButtonConfig;
+  [key:string]: ButtonConfig;
 }
 
 export interface VisibleButtons {
