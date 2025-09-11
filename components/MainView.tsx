@@ -2,13 +2,13 @@
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
-import { useAccount, useSendTransaction, useConnectorClient, useConfig } from 'wagmi';
-import { readContract } from 'wagmi/actions';
+import { useAccount, useSendTransaction, useConfig } from 'wagmi';
+// FIX: `addChain` is no longer exported from `wagmi/actions`. Replaced with `getWalletClient` to use the viem client's `addChain` method.
+import { readContract, switchChain, getWalletClient } from 'wagmi/actions';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
 import { PlusIcon } from './icons';
-// FIX: `numberToHex` is no longer needed with the updated `switchChain` and `addChain` methods.
 import { encodeFunctionData, type Abi, type AbiFunction } from 'viem';
 
 interface MainViewProps {
@@ -51,7 +51,6 @@ const formatReadData = (data: any): string => {
 
 export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, onReorder, showNotification }) => {
   const { address, chainId, isConnected } = useAccount();
-  const { data: client } = useConnectorClient();
   const { sendTransaction } = useSendTransaction();
   const wagmiConfig = useConfig();
 
@@ -97,14 +96,13 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     showNotification(`Button "${key}" saved successfully!`, 'success');
   };
   
-  // FIX: Replace deprecated `client.request` with `client.switchChain` and `client.addChain` from wagmi/viem.
   const switchNetworkIfNeeded = useCallback(async (config: ButtonConfig) => {
-    if (!client || chainId === config.id) {
+    if (!isConnected || chainId === config.id) {
         return true;
     }
 
     try {
-        await client.switchChain({ id: config.id });
+        await switchChain(wagmiConfig, { chainId: config.id });
         return true;
     } catch (switchError: any) {
         const code = switchError.cause?.code || switchError.code;
@@ -115,6 +113,13 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                     return false;
                 }
                 
+                // FIX: `addChain` is no longer exported from `wagmi/actions`.
+                // Use the viem wallet client's `addChain` method instead.
+                const client = await getWalletClient(wagmiConfig);
+                if (!client) {
+                    showNotification('Wallet client not available.', 'error');
+                    return false;
+                }
                 await client.addChain({
                     chain: {
                         id: config.id,
@@ -127,11 +132,11 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                         blockExplorers: config.blockExplorerUrls?.length ? {
                             default: { name: `${config.chainName} Explorer`, url: config.blockExplorerUrls[0] },
                         } : undefined,
-                    },
+                    }
                 });
 
                 // Attempt to switch again after adding.
-                await client.switchChain({ id: config.id });
+                await switchChain(wagmiConfig, { chainId: config.id });
 
                 return true;
             } catch (addError: any) {
@@ -151,7 +156,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             return false;
         }
     }
-  }, [chainId, client, showNotification]);
+  }, [chainId, isConnected, showNotification, wagmiConfig]);
 
   const executeRead = useCallback(async (config: ButtonConfig, args: any[] = []) => {
     if (!isConnected || !address) return;
@@ -198,7 +203,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   }, [isConnected, address, showNotification, wagmiConfig, switchNetworkIfNeeded]);
   
   const executeTransaction = useCallback(async (config: ButtonConfig, args: any[] = []) => {
-    if (!isConnected || !address || !client) {
+    if (!isConnected || !address) {
         showNotification('Please connect your wallet first.', 'info');
         return;
     }
@@ -252,7 +257,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             console.error("Transaction Error:", error);
         }
     });
-  }, [isConnected, address, showNotification, sendTransaction, client, switchNetworkIfNeeded]);
+  }, [isConnected, address, showNotification, sendTransaction, switchNetworkIfNeeded]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
