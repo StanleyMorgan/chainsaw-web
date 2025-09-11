@@ -42,7 +42,7 @@ const formatReadData = (data: any): string => {
   }
   return JSON.stringify(
     data,
-    (key, value) => (typeof value === 'bigint' ? value.toString() : value),
+    (_key, value) => (typeof value === 'bigint' ? value.toString() : value),
     2
   );
 };
