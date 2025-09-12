@@ -9,7 +9,8 @@ interface InputModalProps {
   config: ButtonConfig | null;
   onSubmit: (args: any[]) => void;
   onSave: (args: any[]) => void;
-  showNotification: (message: string, type: NotificationData['type']) => void;
+  // FIX: Updated the `showNotification` prop type to accept an optional `duration` argument for consistency with its definition in App.tsx.
+  showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
 }
 
 // Helper to get a value from a nested object/array using a path

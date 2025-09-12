@@ -6,7 +6,8 @@ interface AddButtonModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (key: string, config: any) => void;
-  showNotification: (message: string, type: NotificationData['type']) => void;
+  // FIX: Updated the `showNotification` prop type to accept an optional `duration` argument for consistency with its definition in App.tsx.
+  showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
   settings: Settings;
 }
 

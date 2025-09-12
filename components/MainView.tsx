@@ -18,7 +18,8 @@ interface MainViewProps {
   setVisibleButtons: (visibleButtons: VisibleButtons) => void;
   buttonOrder: string[];
   onReorder: (draggedKey: string, dropKey:string) => void;
-  showNotification: (message: string, type: NotificationData['type']) => void;
+  // FIX: Updated the `showNotification` prop type to accept an optional `duration` argument, matching its definition in App.tsx and resolving a type error.
+  showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
 }
 
 const isReadCall = (arg: any): arg is ReadCall => {
@@ -291,6 +292,14 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       authorizationList: undefined,
                   });
                   
+                  // DEBUGGING STEP: Show the raw result and halt execution.
+                  const debugMessage = `[Debug] Raw read result:\n${JSON.stringify(readResult, (_key, value) => 
+                      typeof value === 'bigint' ? value.toString() + 'n' : value, 2
+                  )}`;
+                  showNotification(debugMessage, 'info', 20000); // Show for 20 seconds.
+                  throw new Error('Debugging read result. Transaction halted.');
+
+                  /*
                   let finalResult = readResult;
                   const functionAbi = abi.find(
                       (item): item is AbiFunction => item.type === 'function' && item.name === functionName
@@ -332,6 +341,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   }
                   
                   return finalResult;
+                  */
               })();
               readPromises.push(promise);
           } else if (typeof arg === 'string' && arg === '$userAddress') {

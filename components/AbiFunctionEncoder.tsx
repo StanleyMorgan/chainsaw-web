@@ -4,7 +4,8 @@ import type { NotificationData } from './Notification';
 
 interface AbiFunctionEncoderProps {
   onDataGenerated: (data: { abi: any; functionName: string; args: any[] }) => void;
-  showNotification: (message: string, type: NotificationData['type']) => void;
+  // FIX: Updated the `showNotification` prop type to accept an optional `duration` argument for consistency with its definition in App.tsx.
+  showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
 }
 
 export const AbiFunctionEncoder: React.FC<AbiFunctionEncoderProps> = ({ onDataGenerated, showNotification }) => {

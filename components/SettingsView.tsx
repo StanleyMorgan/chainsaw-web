@@ -8,7 +8,8 @@ interface SettingsViewProps {
   setSettings: (settings: Settings) => void;
   visibleButtons: VisibleButtons;
   setVisibleButtons: (visible: VisibleButtons) => void;
-  showNotification: (message: string, type: NotificationData['type']) => void;
+  // FIX: Updated the `showNotification` prop type to accept an optional `duration` argument for consistency with its definition in App.tsx.
+  showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
   onReset: () => void;
 }
 
