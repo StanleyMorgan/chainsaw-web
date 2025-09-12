@@ -319,7 +319,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   // Handle various return types from viem for a single output
                   if (typeof readResult === 'object' && readResult !== null && !Array.isArray(readResult) && outputDef.name && outputDef.name in readResult) {
                       // Case: Named output, result is { [name]: value }
-                      finalResult = readResult[outputDef.name];
+                      finalResult = (readResult as Record<string, any>)[outputDef.name];
                   } else if (Array.isArray(readResult) && readResult.length === 1) {
                       // Case: Result is an array with one item
                       finalResult = readResult[0];
