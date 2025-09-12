@@ -275,7 +275,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
               const readConfig = arg.$read;
 
               const promise = (async () => {
-                  // Resolve nested arguments first (recursively)
                   const nestedArgs = await processArgsForReads(parentConfig, readConfig.args);
                   if (nestedArgs === null) {
                       throw new Error(`Failed to resolve arguments for nested read at index ${index}.`);
@@ -297,6 +296,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                     throw new Error("Function name for embedded read could not be determined.");
                   }
                   
+                  // --- START DIAGNOSTIC ---
                   const readResult = await readContract(wagmiConfig, {
                       address: execReadConfig.address as `0x${string}`,
                       abi: abi,
@@ -306,7 +306,11 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       authorizationList: undefined,
                   });
                   
-                  // ABI-aware result extraction
+                  const diagnostics: Record<string, any> = {
+                    rawResult: readResult,
+                    rawType: typeof readResult
+                  };
+
                   const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
 
                   if (!functionAbi || !functionAbi.outputs || functionAbi.outputs.length !== 1) {
@@ -316,29 +320,23 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   let finalResult: any;
                   const outputDef = functionAbi.outputs[0];
 
-                  // Handle various return types from viem for a single output
                   if (typeof readResult === 'object' && readResult !== null && !Array.isArray(readResult) && outputDef.name && outputDef.name in readResult) {
-                      // Case: Named output, result is { [name]: value }
                       finalResult = (readResult as Record<string, any>)[outputDef.name];
-                  } else if (Array.isArray(readResult) && readResult.length === 1) {
-                      // Case: Result is an array with one item
-                      finalResult = readResult[0];
                   } else {
-                      // Case: Result is already the primitive value, or something unexpected we pass through.
                       finalResult = readResult;
                   }
-
-                  // If the extracted value is a bigint, convert it to a string to prevent downstream errors.
-                  if (typeof finalResult === 'bigint') {
-                    finalResult = finalResult.toString();
-                  }
                   
-                  // After extraction, if it's still an object, it's an error.
-                  if (typeof finalResult === 'object' && finalResult !== null) {
-                    throw new Error(`Could not extract a primitive value from the read call result. Received: ${JSON.stringify(readResult)}`);
-                  }
+                  diagnostics.extractedValue = finalResult;
+                  diagnostics.extractedType = typeof finalResult;
 
-                  return finalResult;
+                  setReadError(null);
+                  setReadData(diagnostics);
+                  showNotification('Diagnostic data captured. Please copy the result and share it.', 'info', 10000);
+                  
+                  // We throw an error here to stop the execution flow intentionally for diagnostics.
+                  // This will be caught by the Promise.all handler below.
+                  throw new Error("DIAGNOSTIC_HALT");
+                  // --- END DIAGNOSTIC ---
               })();
               readPromises.push(promise);
           } else if (typeof arg === 'string' && arg === '$userAddress') {
@@ -358,15 +356,17 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   processedArgs[originalIndex] = result;
               });
           } catch (error: any) {
-              const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
-              showNotification(`Embedded read failed: ${message}`, 'error');
-              console.error("Embedded Read Error:", error);
-              return null; // Indicates failure
+              if (error.message !== "DIAGNOSTIC_HALT") {
+                const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
+                showNotification(`Embedded read failed: ${message}`, 'error');
+                console.error("Embedded Read Error:", error);
+              }
+              return null; // Indicates failure or diagnostic halt
           }
       }
 
       return processedArgs;
-  }, [address, showNotification, switchNetworkIfNeeded, wagmiConfig]);
+  }, [address, showNotification, switchNetworkIfNeeded, wagmiConfig, setReadData, setReadError]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
@@ -375,6 +375,8 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     }
     
     setHoveredDescription(config.description || 'No description available for this action.');
+    setReadData(null);
+    setReadError(null);
 
     const executionConfig = getExecutionConfig(config);
 
