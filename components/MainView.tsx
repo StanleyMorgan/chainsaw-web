@@ -305,11 +305,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       chainId: targetId,
                       authorizationList: undefined,
                   });
-                  
-                  const diagnostics: Record<string, any> = {
-                    rawResult: readResult,
-                    rawType: typeof readResult
-                  };
 
                   const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
 
@@ -326,13 +321,14 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       finalResult = readResult;
                   }
                   
-                  diagnostics.extractedValue = finalResult;
-                  diagnostics.extractedType = typeof finalResult;
+                  console.log("--- CHAINSAW DIAGNOSTICS ---");
+                  console.log("Raw Result from contract:", readResult);
+                  console.log("Type of Raw Result:", typeof readResult);
+                  console.log("Value Extracted by App:", finalResult);
+                  console.log("Type of Extracted Value:", typeof finalResult);
+                  console.log("----------------------------");
+                  showNotification('Diagnostic data logged to browser console. Please open it (F12) and share the output.', 'info', 10000);
 
-                  setReadError(null);
-                  setReadData(diagnostics);
-                  showNotification('Diagnostic data captured. Please copy the result and share it.', 'info', 10000);
-                  
                   // We throw an error here to stop the execution flow intentionally for diagnostics.
                   // This will be caught by the Promise.all handler below.
                   throw new Error("DIAGNOSTIC_HALT");
@@ -366,7 +362,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       }
 
       return processedArgs;
-  }, [address, showNotification, switchNetworkIfNeeded, wagmiConfig, setReadData, setReadError]);
+  }, [address, showNotification, switchNetworkIfNeeded, wagmiConfig]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
