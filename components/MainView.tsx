@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from './Notification';
@@ -379,7 +378,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             gas: execConfig.gas ? BigInt(execConfig.gas) : undefined,
             chainId: execConfig.id,
         }, {
-            onSuccess: (hash) => showNotification('Transaction sent successfully!', 'success'),
+            onSuccess: () => showNotification('Transaction sent successfully!', 'success'),
             onError: (error) => {
                 const message = error.message.split(/[\(.]/)[0];
                 showNotification(`Transaction failed: ${message}`, 'error');
@@ -484,12 +483,15 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                     </button>
                 </div>
             </div>
-
-            {/* Main content area for buttons */}
+            
+            {/* Main Content */}
             <div className="lg:col-span-7 xl:col-span-8">
-              {visibleButtonKeys.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {visibleButtonKeys.map(key => (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                {visibleButtonKeys.map(key => {
+                  const config = settings[key];
+                  if (!config) return null;
+
+                  return (
                     <div
                       key={key}
                       draggable
@@ -497,30 +499,29 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, key)}
                       onDragEnd={handleDragEnd}
-                      onMouseEnter={() => setHoveredDescription(settings[key]?.description || 'No description available.')}
+                      onMouseEnter={() => setHoveredDescription(config.description || 'No description provided.')}
+                      onMouseLeave={() => setHoveredDescription('Hover over a button to see its description.')}
                       className="cursor-move"
+                      title={config.description || key}
                     >
                       <ActionButton
                         buttonKey={key}
-                        config={settings[key]}
-                        onClick={() => handleButtonClick(key, settings[key])}
+                        config={config}
+                        onClick={() => handleButtonClick(key, config)}
                       />
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500 rounded-lg bg-gray-800/50 border border-gray-700/50 min-h-[200px] flex flex-col items-center justify-center">
-                  <p className="mb-4">No buttons are visible.</p>
-                  <p>Go to Settings to configure or enable them.</p>
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </div>
           </div>
         ) : (
           <div className="text-center py-20">
-            <h2 className="text-3xl font-bold mb-4">Welcome to Chainsaw</h2>
-            <p className="text-gray-400 mb-8 max-w-xl mx-auto">The ultimate tool for power users to interact with smart contracts. Connect your wallet to get started.</p>
-            <div className="flex justify-center">
+            <h2 className="text-3xl font-bold text-white mb-4">Welcome to Chainsaw</h2>
+            <p className="text-lg text-gray-400 mb-8 max-w-2xl mx-auto">
+              Your powerful tool for interacting with smart contracts. Connect your wallet to get started.
+            </p>
+            <div className="inline-block">
               <ConnectButton />
             </div>
           </div>
@@ -535,14 +536,16 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         settings={settings}
       />
       
-      <InputModal 
-        isOpen={isInputModalOpen}
-        onClose={() => setIsInputModalOpen(false)}
-        config={currentConfigForInput?.config || null}
-        onSubmit={handleInputModalSubmit}
-        onSave={handleInputModalSave}
-        showNotification={showNotification}
-      />
+      {isInputModalOpen && currentConfigForInput && (
+        <InputModal
+          isOpen={isInputModalOpen}
+          onClose={() => setIsInputModalOpen(false)}
+          config={currentConfigForInput.config}
+          onSubmit={handleInputModalSubmit}
+          onSave={handleInputModalSave}
+          showNotification={showNotification}
+        />
+      )}
     </>
   );
 };
