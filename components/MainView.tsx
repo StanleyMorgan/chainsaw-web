@@ -26,6 +26,23 @@ const isReadCall = (arg: any): arg is ReadCall => {
   return typeof arg === 'object' && arg !== null && '$read' in arg;
 };
 
+// Helper function to infer functionName if an ABI has only one function.
+const getExecutionConfig = (config: ButtonConfig): ButtonConfig => {
+  const executionConfig = { ...config };
+  if (executionConfig.abi && !executionConfig.functionName) {
+    try {
+      const abi = executionConfig.abi as Abi;
+      const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
+      if (functionsInAbi.length === 1) {
+        executionConfig.functionName = functionsInAbi[0].name;
+      }
+    } catch (e) {
+      // Ignore ABI parsing errors here; they will be handled by the caller.
+    }
+  }
+  return executionConfig;
+};
+
 const ActionButton: React.FC<{
     buttonKey: string;
     config: ButtonConfig;
@@ -159,7 +176,8 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   const executeRead = useCallback(async (config: ButtonConfig, args: any[] = []): Promise<any | null> => {
     if (!isConnected || !address) return null;
     
-    const networkReady = await switchNetworkIfNeeded(config.id, config);
+    const execConfig = getExecutionConfig(config);
+    const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
     if (!networkReady) return null;
 
     setIsReading(true);
@@ -167,15 +185,18 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     setReadError(null);
 
     try {
+      if (!execConfig.functionName) {
+        throw new Error("Function name could not be determined from ABI.");
+      }
       // FIX: Added authorizationList: undefined to the readContract parameters to resolve a type error
       // likely caused by a version mismatch between wagmi and viem, where a transaction-related
       // property was being incorrectly required for a read-only call.
       const data = await readContract(wagmiConfig, {
-        address: config.address as `0x${string}`,
-        abi: config.abi as Abi,
-        functionName: config.functionName!,
+        address: execConfig.address as `0x${string}`,
+        abi: execConfig.abi as Abi,
+        functionName: execConfig.functionName,
         args,
-        chainId: config.id,
+        chainId: execConfig.id,
         authorizationList: undefined,
       });
 
@@ -197,21 +218,22 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         return false;
     }
     
-    const networkReady = await switchNetworkIfNeeded(config.id, config);
+    const execConfig = getExecutionConfig(config);
+    const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
     if (!networkReady) return false;
 
     let transactionData: `0x${string}` | undefined;
     try {
-        if (config.abi && config.functionName) {
+        if (execConfig.abi && execConfig.functionName) {
             transactionData = encodeFunctionData({ 
-              abi: config.abi as Abi, 
-              functionName: config.functionName, 
+              abi: execConfig.abi as Abi, 
+              functionName: execConfig.functionName, 
               args 
             });
-        } else if (config.data) {
-            transactionData = config.data as `0x${string}`;
+        } else if (execConfig.data) {
+            transactionData = execConfig.data as `0x${string}`;
         } else {
-            showNotification('Button has no transaction data.', 'error');
+            showNotification('Button has no transaction data or function name could not be determined.', 'error');
             return false;
         }
     } catch (error: any) {
@@ -221,10 +243,10 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     
     return new Promise((resolve) => {
       sendTransaction({
-          to: config.address as `0x${string}`,
-          value: config.value ? BigInt(config.value) : undefined,
+          to: execConfig.address as `0x${string}`,
+          value: execConfig.value ? BigInt(execConfig.value) : undefined,
           data: transactionData,
-          gas: config.gas ? BigInt(config.gas) : undefined,
+          gas: execConfig.gas ? BigInt(execConfig.gas) : undefined,
       }, {
           onSuccess: (hash) => {
               showNotification(`Transaction sent! Hash: ${hash.slice(0,10)}...`, 'success');
@@ -268,25 +290,20 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   }
 
                   const abi = readConfig.abi as Abi;
-                  let functionName = readConfig.functionName;
+                  // FIX: An embedded read call's configuration must be a valid `ButtonConfig`.
+                  // Added `value` and `color` from the parent button to satisfy the type.
+                  const execReadConfig = getExecutionConfig({ ...readConfig, address: targetAddress, id: targetId, value: parentConfig.value, color: parentConfig.color });
 
-                  if (!functionName) {
-                      const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
-                      if (functionsInAbi.length === 1) {
-                          functionName = functionsInAbi[0].name;
-                      } else if (functionsInAbi.length > 1) {
-                          throw new Error('Embedded read ABI has multiple functions. Please specify "functionName".');
-                      } else {
-                          throw new Error('Embedded read ABI has no functions.');
-                      }
+                  if (!execReadConfig.functionName) {
+                    throw new Error("Function name for embedded read could not be determined.");
                   }
-
+                  
                   // FIX: Added authorizationList: undefined to the readContract parameters to resolve a type error
                   // likely caused by a version mismatch between wagmi and viem.
                   const readResult = await readContract(wagmiConfig, {
-                      address: targetAddress as `0x${string}`,
+                      address: execReadConfig.address as `0x${string}`,
                       abi: abi,
-                      functionName: functionName,
+                      functionName: execReadConfig.functionName,
                       args: nestedArgs,
                       chainId: targetId,
                       authorizationList: undefined,
@@ -355,27 +372,22 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     
     setHoveredDescription(config.description || 'No description available for this action.');
 
-    if (config.abi) {
+    const executionConfig = getExecutionConfig(config);
+
+    if (executionConfig.abi) {
         try {
-            const abi = config.abi as Abi;
-            let functionName = config.functionName;
-             if (!functionName) {
-                const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
-                if (functionsInAbi.length === 1) {
-                    functionName = functionsInAbi[0].name;
-                }
-            }
+            const abi = executionConfig.abi as Abi;
             const functionAbi = abi.find(
-                (item): item is AbiFunction => item.type === 'function' && item.name === functionName
+                (item): item is AbiFunction => item.type === 'function' && item.name === executionConfig.functionName
             );
 
             if (functionAbi && functionAbi.inputs && functionAbi.inputs.length > 0) {
-                const hasUnfilledArgs = !(config.args && config.args.length === functionAbi.inputs.length && 
-                    !config.args.some(arg => arg === null || arg === undefined || arg === '' || isReadCall(arg))
+                const hasUnfilledArgs = !(executionConfig.args && executionConfig.args.length === functionAbi.inputs.length && 
+                    !executionConfig.args.some(arg => arg === null || arg === undefined || arg === '' || isReadCall(arg))
                 );
 
                 if (hasUnfilledArgs) {
-                    setCurrentConfigForInput({ key, config });
+                    setCurrentConfigForInput({ key, config: config }); // Pass original config to modal
                     setIsInputModalOpen(true);
                     return;
                 }
@@ -386,13 +398,13 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         }
     }
     
-    const finalArgs = await processArgsForReads(config, config.args || []);
+    const finalArgs = await processArgsForReads(executionConfig, executionConfig.args || []);
     if (finalArgs === null) return; // Error occurred and was notified
 
-    if (config.readOnly) {
-      await executeRead(config, finalArgs);
+    if (executionConfig.readOnly) {
+      await executeRead(executionConfig, finalArgs);
     } else {
-      await executeTransaction(config, finalArgs);
+      await executeTransaction(executionConfig, finalArgs);
     }
   };
 
