@@ -290,46 +290,50 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   }
 
                   const abi = readConfig.abi as Abi;
-                  // FIX: An embedded read call's configuration must be a valid `ButtonConfig`.
-                  // Added `value` and `color` from the parent button to satisfy the type.
                   const execReadConfig = getExecutionConfig({ ...readConfig, address: targetAddress, id: targetId, value: parentConfig.value, color: parentConfig.color });
+                  const functionName = execReadConfig.functionName;
 
-                  if (!execReadConfig.functionName) {
+                  if (!functionName) {
                     throw new Error("Function name for embedded read could not be determined.");
                   }
                   
-                  // FIX: Added authorizationList: undefined to the readContract parameters to resolve a type error
-                  // likely caused by a version mismatch between wagmi and viem.
                   const readResult = await readContract(wagmiConfig, {
                       address: execReadConfig.address as `0x${string}`,
                       abi: abi,
-                      functionName: execReadConfig.functionName,
+                      functionName: functionName,
                       args: nestedArgs,
                       chainId: targetId,
                       authorizationList: undefined,
                   });
                   
-                  // Recursively find the first primitive value. This is a robust way to handle
-                  // various return types from viem like [123n], { balance: 123n }, or just 123n.
-                  const extractPrimitive = (value: any): any => {
-                    if (typeof value !== 'object' || value === null) {
-                      return value; // It's already a primitive (string, number, bigint, etc.)
-                    }
-                    if (Array.isArray(value)) {
-                      return value.length > 0 ? extractPrimitive(value[0]) : value;
-                    }
-                    const values = Object.values(value);
-                    return values.length > 0 ? extractPrimitive(values[0]) : value;
-                  };
+                  // ABI-aware result extraction
+                  const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
 
-                  let finalResult = extractPrimitive(readResult);
+                  if (!functionAbi || !functionAbi.outputs || functionAbi.outputs.length !== 1) {
+                      throw new Error(`$read call must point to a function with exactly one output. Found ${functionAbi?.outputs?.length ?? 0}.`);
+                  }
+
+                  let finalResult: any;
+                  const outputDef = functionAbi.outputs[0];
+
+                  // Handle various return types from viem for a single output
+                  if (typeof readResult === 'object' && readResult !== null && !Array.isArray(readResult) && outputDef.name && outputDef.name in readResult) {
+                      // Case: Named output, result is { [name]: value }
+                      finalResult = readResult[outputDef.name];
+                  } else if (Array.isArray(readResult) && readResult.length === 1) {
+                      // Case: Result is an array with one item
+                      finalResult = readResult[0];
+                  } else {
+                      // Case: Result is already the primitive value, or something unexpected we pass through.
+                      finalResult = readResult;
+                  }
 
                   // If the extracted value is a bigint, convert it to a string to prevent downstream errors.
                   if (typeof finalResult === 'bigint') {
                     finalResult = finalResult.toString();
                   }
                   
-                  // After extraction, if it's still an object, it means the read call returned an empty object/array.
+                  // After extraction, if it's still an object, it's an error.
                   if (typeof finalResult === 'object' && finalResult !== null) {
                     throw new Error(`Could not extract a primitive value from the read call result. Received: ${JSON.stringify(readResult)}`);
                   }
