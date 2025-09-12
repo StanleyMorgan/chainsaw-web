@@ -266,16 +266,44 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       throw new Error(`Network switch failed for read call at index ${index}.`);
                   }
 
+                  const abi = readConfig.abi as Abi;
+                  let functionName = readConfig.functionName;
+
+                  if (!functionName) {
+                      const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
+                      if (functionsInAbi.length === 1) {
+                          functionName = functionsInAbi[0].name;
+                      } else if (functionsInAbi.length > 1) {
+                          throw new Error('Embedded read ABI has multiple functions. Please specify "functionName".');
+                      } else {
+                          throw new Error('Embedded read ABI has no functions.');
+                      }
+                  }
+
                   // FIX: Added authorizationList: undefined to the readContract parameters to resolve a type error
                   // likely caused by a version mismatch between wagmi and viem.
-                  return readContract(wagmiConfig, {
+                  const readResult = await readContract(wagmiConfig, {
                       address: targetAddress as `0x${string}`,
-                      abi: readConfig.abi as Abi,
-                      functionName: readConfig.functionName,
+                      abi: abi,
+                      functionName: functionName,
                       args: nestedArgs,
                       chainId: targetId,
                       authorizationList: undefined,
                   });
+                  
+                  // If the result is an array with a single element, and the function ABI confirms
+                  // a single output, unwrap it. This prevents errors if a read call unexpectedly
+                  // returns `[value]` instead of `value`.
+                  if (Array.isArray(readResult) && readResult.length === 1) {
+                      const functionAbi = abi.find(
+                          (item): item is AbiFunction => item.type === 'function' && item.name === functionName
+                      );
+                      if (functionAbi && functionAbi.outputs.length === 1) {
+                          return readResult[0];
+                      }
+                  }
+                  
+                  return readResult;
               })();
               readPromises.push(promise);
           } else if (typeof arg === 'string' && arg === '$userAddress') {
