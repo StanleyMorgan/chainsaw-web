@@ -1,3 +1,17 @@
+import type { Abi } from 'viem';
+
+// Defines a read call that can be embedded directly into the `args` array.
+export interface ReadCall {
+  '$read': {
+    // Optional: The address of the contract to read from.
+    // If not provided, it defaults to the parent button's address.
+    address?: string;
+    abi: Abi | readonly unknown[];
+    functionName: string;
+    args: any[];
+  }
+}
+
 export interface ButtonConfig {
   id: number;
   address: string;
@@ -7,10 +21,16 @@ export interface ButtonConfig {
   color: string;
   description?: string;
   // Optional: for ABI-based transactions
-  abi?: any;
+  abi?: Abi | readonly unknown[];
   functionName?: string;
-  args?: any[];
+  // Arguments can now contain strings, numbers, or embedded read call objects.
+  args?: (string | number | ReadCall)[];
   readOnly?: boolean;
+
+  // For chained actions
+  type?: 'single' | 'chained';
+  steps?: ButtonConfig[];
+
   // Optional: for adding a new network
   chainName?: string;
   nativeCurrency?: {

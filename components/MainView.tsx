@@ -1,10 +1,10 @@
-
 import React, { useState, useRef, useCallback } from 'react';
-import type { Settings, VisibleButtons, ButtonConfig } from '../types';
+import type { Settings, VisibleButtons, ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from './Notification';
 import { useAccount, useSendTransaction, useConfig } from 'wagmi';
 // FIX: `addChain` is no longer exported from `wagmi/actions`. Replaced with `getWalletClient` to use the viem client's `addChain` method.
-import { readContract, switchChain, getWalletClient } from 'wagmi/actions';
+// FIX: `readContract`, `switchChain`, and `getWalletClient` are now imported from `@wagmi/core` in wagmi v2 to fix type errors.
+import { readContract, switchChain, getWalletClient } from '@wagmi/core';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
@@ -20,6 +20,10 @@ interface MainViewProps {
   onReorder: (draggedKey: string, dropKey:string) => void;
   showNotification: (message: string, type: NotificationData['type']) => void;
 }
+
+const isReadCall = (arg: any): arg is ReadCall => {
+  return typeof arg === 'object' && arg !== null && '$read' in arg;
+};
 
 const ActionButton: React.FC<{
     buttonKey: string;
@@ -96,25 +100,23 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     showNotification(`Button "${key}" saved successfully!`, 'success');
   };
   
-  const switchNetworkIfNeeded = useCallback(async (config: ButtonConfig) => {
-    if (!isConnected || chainId === config.id) {
+  const switchNetworkIfNeeded = useCallback(async (targetChainId: number, chainConfig?: ButtonConfig) => {
+    if (!isConnected || chainId === targetChainId) {
         return true;
     }
 
     try {
-        await switchChain(wagmiConfig, { chainId: config.id });
+        await switchChain(wagmiConfig, { chainId: targetChainId });
         return true;
     } catch (switchError: any) {
         const code = switchError.cause?.code || switchError.code;
-        if (code === 4902) { // Chain not found
+        if (code === 4902 && chainConfig) { // Chain not found, and we have config to add it
             try {
-                if (!config.chainName || !config.rpcUrls?.length || !config.nativeCurrency) {
+                if (!chainConfig.chainName || !chainConfig.rpcUrls?.length || !chainConfig.nativeCurrency) {
                     showNotification('Chain not found in wallet. Please add it manually or provide complete chain details in the button config.', 'error');
                     return false;
                 }
                 
-                // FIX: `addChain` is no longer exported from `wagmi/actions`.
-                // Use the viem wallet client's `addChain` method instead.
                 const client = await getWalletClient(wagmiConfig);
                 if (!client) {
                     showNotification('Wallet client not available.', 'error');
@@ -122,29 +124,25 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                 }
                 await client.addChain({
                     chain: {
-                        id: config.id,
-                        name: config.chainName,
-                        nativeCurrency: config.nativeCurrency,
+                        id: targetChainId,
+                        name: chainConfig.chainName,
+                        nativeCurrency: chainConfig.nativeCurrency,
                         rpcUrls: {
-                            default: { http: config.rpcUrls },
-                            public: { http: config.rpcUrls },
+                            default: { http: chainConfig.rpcUrls },
+                            public: { http: chainConfig.rpcUrls },
                         },
-                        blockExplorers: config.blockExplorerUrls?.length ? {
-                            default: { name: `${config.chainName} Explorer`, url: config.blockExplorerUrls[0] },
+                        blockExplorers: chainConfig.blockExplorerUrls?.length ? {
+                            default: { name: `${chainConfig.chainName} Explorer`, url: chainConfig.blockExplorerUrls[0] },
                         } : undefined,
                     }
                 });
-
-                // Attempt to switch again after adding.
-                await switchChain(wagmiConfig, { chainId: config.id });
-
+                await switchChain(wagmiConfig, { chainId: targetChainId });
                 return true;
             } catch (addError: any) {
                 const message = addError.message?.includes('User rejected the request')
                     ? 'Request to add network rejected.'
                     : `Failed to add network: ${addError.message?.split(/[\(.]/)[0]}`;
                 showNotification(message, 'error');
-                console.error("Add Network Error:", addError);
                 return false;
             }
         } else {
@@ -152,112 +150,160 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                 ? 'Request to switch network rejected.'
                 : `Failed to switch network: ${switchError.message?.split(/[\(.]/)[0]}`;
             showNotification(message, 'error');
-            console.error("Switch Network Error:", switchError);
             return false;
         }
     }
   }, [chainId, isConnected, showNotification, wagmiConfig]);
 
-  const executeRead = useCallback(async (config: ButtonConfig, args: any[] = []) => {
-    if (!isConnected || !address) return;
+  const executeRead = useCallback(async (config: ButtonConfig, args: any[] = []): Promise<any | null> => {
+    if (!isConnected || !address) return null;
     
-    const networkReady = await switchNetworkIfNeeded(config);
-    if (!networkReady) return;
+    const networkReady = await switchNetworkIfNeeded(config.id, config);
+    if (!networkReady) return null;
 
     setIsReading(true);
     setReadData(null);
     setReadError(null);
 
     try {
-      const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
-      let functionName = config.functionName;
-
-      if (!functionName) {
-        const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
-        if (functionsInAbi.length === 1) {
-            functionName = functionsInAbi[0].name;
-        } else {
-            throw new Error('"functionName" is missing and could not be inferred.');
-        }
-      }
-      
-      // FIX: Explicitly set authorizationList to undefined to address a type incompatibility
-      // with recent versions of wagmi/viem where this optional property is incorrectly required.
+      // FIX: Added authorizationList: undefined to the readContract parameters to resolve a type error
+      // likely caused by a version mismatch between wagmi and viem, where a transaction-related
+      // property was being incorrectly required for a read-only call.
       const data = await readContract(wagmiConfig, {
         address: config.address as `0x${string}`,
-        abi,
-        functionName,
+        abi: config.abi as Abi,
+        functionName: config.functionName!,
         args,
         chainId: config.id,
         authorizationList: undefined,
       });
 
       setReadData(data);
+      return data;
     } catch (error: any) {
       const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
       setReadError(`Read failed: ${message}`);
       console.error("Read Contract Error:", error);
+      return null;
     } finally {
       setIsReading(false);
     }
-  }, [isConnected, address, showNotification, wagmiConfig, switchNetworkIfNeeded]);
+  }, [isConnected, address, wagmiConfig, switchNetworkIfNeeded]);
   
-  const executeTransaction = useCallback(async (config: ButtonConfig, args: any[] = []) => {
+  const executeTransaction = useCallback(async (config: ButtonConfig, args: any[] = []): Promise<boolean> => {
     if (!isConnected || !address) {
         showNotification('Please connect your wallet first.', 'info');
-        return;
+        return false;
     }
     
-    const networkReady = await switchNetworkIfNeeded(config);
-    if (!networkReady) return;
+    const networkReady = await switchNetworkIfNeeded(config.id, config);
+    if (!networkReady) return false;
 
     let transactionData: `0x${string}` | undefined;
     try {
-        if (config.abi) {
-            const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
-            let functionName = config.functionName;
-
-            if (!functionName) {
-                const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
-                if (functionsInAbi.length === 1) {
-                    functionName = functionsInAbi[0].name;
-                } else {
-                    throw new Error('"functionName" is missing and could not be inferred. Provide it or ensure the ABI contains exactly one function.');
-                }
-            }
-            
-            transactionData = encodeFunctionData({ abi, functionName, args });
+        if (config.abi && config.functionName) {
+            transactionData = encodeFunctionData({ 
+              abi: config.abi as Abi, 
+              functionName: config.functionName, 
+              args 
+            });
         } else if (config.data) {
             transactionData = config.data as `0x${string}`;
         } else {
-            showNotification('Button has no transaction data. Configure either raw data or use an ABI.', 'error');
-            return;
+            showNotification('Button has no transaction data.', 'error');
+            return false;
         }
     } catch (error: any) {
-        console.error("Failed to encode ABI data:", error);
         showNotification(`Error encoding transaction data: ${error.message}`, 'error');
-        return;
+        return false;
     }
     
-    sendTransaction({
-        to: config.address as `0x${string}`,
-        value: config.value ? BigInt(config.value) : undefined,
-        data: transactionData,
-        gas: config.gas ? BigInt(config.gas) : undefined,
-    }, {
-        onSuccess: (hash) => {
-            showNotification(`Transaction sent! Hash: ${hash.slice(0,10)}...`, 'success');
-        },
-        onError: (error) => {
-            const message = error.message.includes('User rejected the request') 
-                ? 'Transaction rejected.' 
-                : `Transaction failed: ${error.message.split(/[\(.]/)[0]}`;
+    return new Promise((resolve) => {
+      sendTransaction({
+          to: config.address as `0x${string}`,
+          value: config.value ? BigInt(config.value) : undefined,
+          data: transactionData,
+          gas: config.gas ? BigInt(config.gas) : undefined,
+      }, {
+          onSuccess: (hash) => {
+              showNotification(`Transaction sent! Hash: ${hash.slice(0,10)}...`, 'success');
+              resolve(true);
+          },
+          onError: (error) => {
+              const message = error.message.includes('User rejected the request') 
+                  ? 'Transaction rejected.' 
+                  : `Transaction failed: ${error.message.split(/[\(.]/)[0]}`;
 
-            showNotification(message, message.includes('rejected') ? 'info' : 'error');
-            console.error("Transaction Error:", error);
-        }
+              showNotification(message, 'info');
+              resolve(false);
+          }
+      });
     });
   }, [isConnected, address, showNotification, sendTransaction, switchNetworkIfNeeded]);
+  
+  const processArgsForReads = useCallback(async (parentConfig: ButtonConfig, args: any[]): Promise<any[] | null> => {
+      const processedArgs = [...args];
+      const readPromises: Promise<any>[] = [];
+      const readIndices: number[] = [];
+
+      for (const [index, arg] of processedArgs.entries()) {
+          if (isReadCall(arg)) {
+              readIndices.push(index);
+              const readConfig = arg.$read;
+
+              const promise = (async () => {
+                  // Resolve nested arguments first (recursively)
+                  const nestedArgs = await processArgsForReads(parentConfig, readConfig.args);
+                  if (nestedArgs === null) {
+                      throw new Error(`Failed to resolve arguments for nested read at index ${index}.`);
+                  }
+
+                  const targetAddress = readConfig.address || parentConfig.address;
+                  const targetId = parentConfig.id;
+                  
+                  const networkReady = await switchNetworkIfNeeded(targetId, parentConfig);
+                  if (!networkReady) {
+                      throw new Error(`Network switch failed for read call at index ${index}.`);
+                  }
+
+                  // FIX: Added authorizationList: undefined to the readContract parameters to resolve a type error
+                  // likely caused by a version mismatch between wagmi and viem.
+                  return readContract(wagmiConfig, {
+                      address: targetAddress as `0x${string}`,
+                      abi: readConfig.abi as Abi,
+                      functionName: readConfig.functionName,
+                      args: nestedArgs,
+                      chainId: targetId,
+                      authorizationList: undefined,
+                  });
+              })();
+              readPromises.push(promise);
+          } else if (typeof arg === 'string' && arg === '$userAddress') {
+              if (!address) {
+                  showNotification('Wallet not connected.', 'error');
+                  return null;
+              }
+              processedArgs[index] = address;
+          }
+      }
+
+      if (readPromises.length > 0) {
+          try {
+              const readResults = await Promise.all(readPromises);
+              readResults.forEach((result, i) => {
+                  const originalIndex = readIndices[i];
+                  processedArgs[originalIndex] = result;
+              });
+          } catch (error: any) {
+              const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
+              showNotification(`Embedded read failed: ${message}`, 'error');
+              console.error("Embedded Read Error:", error);
+              return null; // Indicates failure
+          }
+      }
+
+      return processedArgs;
+  }, [address, showNotification, switchNetworkIfNeeded, wagmiConfig]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
@@ -265,13 +311,11 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         return;
     }
     
-    if (config.readOnly) {
-      setHoveredDescription(config.description || 'No description available for this action.');
-    }
+    setHoveredDescription(config.description || 'No description available for this action.');
 
     if (config.abi) {
         try {
-            const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
+            const abi = config.abi as Abi;
             let functionName = config.functionName;
              if (!functionName) {
                 const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
@@ -284,9 +328,15 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             );
 
             if (functionAbi && functionAbi.inputs && functionAbi.inputs.length > 0) {
-                setCurrentConfigForInput({ key, config });
-                setIsInputModalOpen(true);
-                return;
+                const hasUnfilledArgs = !(config.args && config.args.length === functionAbi.inputs.length && 
+                    !config.args.some(arg => arg === null || arg === undefined || arg === '' || isReadCall(arg))
+                );
+
+                if (hasUnfilledArgs) {
+                    setCurrentConfigForInput({ key, config });
+                    setIsInputModalOpen(true);
+                    return;
+                }
             }
         } catch (error: any) {
             showNotification(`ABI Error: ${error.message}`, 'error');
@@ -294,24 +344,36 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         }
     }
     
+    const finalArgs = await processArgsForReads(config, config.args || []);
+    if (finalArgs === null) return; // Error occurred and was notified
+
     if (config.readOnly) {
-      await executeRead(config, config.args || []);
+      await executeRead(config, finalArgs);
     } else {
-      await executeTransaction(config, config.args || []);
+      await executeTransaction(config, finalArgs);
     }
   };
 
-  const handleInputModalSubmit = useCallback((args: any[]) => {
+  const handleInputModalSubmit = useCallback(async (args: any[]) => {
     if (currentConfigForInput) {
-        if (currentConfigForInput.config.readOnly) {
-          executeRead(currentConfigForInput.config, args);
+        const { config } = currentConfigForInput;
+        const finalArgs = await processArgsForReads(config, args);
+        if (finalArgs === null) {
+            // Error handled in processArgs, just clean up modal state
+            setIsInputModalOpen(false);
+            setCurrentConfigForInput(null);
+            return;
+        }
+
+        if (config.readOnly) {
+          await executeRead(config, finalArgs);
         } else {
-          executeTransaction(currentConfigForInput.config, args);
+          await executeTransaction(config, finalArgs);
         }
     }
     setIsInputModalOpen(false);
     setCurrentConfigForInput(null);
-  }, [currentConfigForInput, executeTransaction, executeRead]);
+  }, [currentConfigForInput, executeTransaction, executeRead, processArgsForReads]);
 
   const handleInputModalSave = useCallback((args: any[]) => {
     if (!currentConfigForInput) return;
