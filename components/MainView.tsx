@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from './Notification';
@@ -221,15 +223,16 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       if (!execConfig.functionName) {
         throw new Error("Function name could not be determined from ABI.");
       }
-      // FIX: The wagmi `readContract` action was incorrectly inferring transaction-related types,
-      // causing a TypeScript error. Providing `chainId` is sufficient to ensure it uses a public
-      // client, and the `account` property has been removed to fix errors with recent wagmi versions.
+      // FIX: Set `account: undefined` to resolve a wagmi v2 type error where `readContract`
+      // incorrectly requires transaction-related properties. This helps TypeScript
+      // infer the correct overload for a read-only call.
       const data = await readContract(wagmiConfig, {
         address: execConfig.address as `0x${string}`,
         abi: execConfig.abi as Abi,
         functionName: execConfig.functionName,
         args: args,
         chainId: execConfig.id,
+        account: undefined,
       });
       showNotification(`Result: ${formatReadData(data)}`, 'read', 5000);
       return data;
@@ -279,14 +282,16 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         if (!networkReady) return null;
 
         try {
-          // FIX: The `account` property was removed from the `readContract` call to prevent type errors with recent wagmi versions.
-          // Providing `chainId` ensures the correct public client is used.
+          // FIX: Set `account: undefined` to resolve a wagmi v2 type error where `readContract`
+          // incorrectly requires transaction-related properties. This helps TypeScript
+          // infer the correct overload for a read-only call.
           const readResult = await readContract(wagmiConfig, {
             address: readCallConfig.address as `0x${string}`,
             abi: readCallConfig.abi as Abi,
             functionName: readCallConfig.functionName,
             args: processedReadArgs,
             chainId: parentConfig.id,
+            account: undefined,
           });
           
           const finalValue = extractSingleValue(readResult, funcAbi);
@@ -325,12 +330,14 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         let txData: `0x${string}` | undefined;
         if (execConfig.data) {
             txData = execConfig.data as `0x${string}`;
-        } else if (execConfig.abi && execConfig.functionName) {
-            txData = encodeFunctionData({
-                abi: execConfig.abi as Abi,
-                functionName: execConfig.functionName,
-                args: finalArgs,
-            });
+        } else if (execConfig.abi) {
+            if (execConfig.functionName) {
+                txData = encodeFunctionData({
+                    abi: execConfig.abi as Abi,
+                    functionName: execConfig.functionName,
+                    args: finalArgs,
+                });
+            }
         }
 
         if (!txData) {
@@ -385,7 +392,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       return;
     }
     
-    let argsToProcess: (string | number | ReadCall)[] | undefined = execConfig.args;
     let hasEmptyArgs = false;
 
     if (execConfig.abi) {
