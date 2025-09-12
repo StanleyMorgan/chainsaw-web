@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from './Notification';
@@ -296,19 +295,20 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   const functionAbi = abi.find(
                       (item): item is AbiFunction => item.type === 'function' && item.name === functionName
                   );
-
-                  // If the function has exactly one output, we might need to unwrap the result
-                  // to get the raw value, as wagmi/viem can return it as an array or object.
+                  
+                  // If the function has exactly one output, we must unwrap the result
+                  // to get the raw value, as wagmi/viem can return it in various formats.
                   if (functionAbi && functionAbi.outputs.length === 1) {
-                      // Case 1: Result is an array with a single element, e.g., `[ 123n ]`
-                      if (Array.isArray(readResult) && readResult.length === 1) {
+                      // Case 1: Result is an array or array-like (e.g., from older ethers versions), take the first element.
+                      if (Array.isArray(readResult) && readResult.length > 0) {
                           finalResult = readResult[0];
                       } 
-                      // Case 2: Result is an object with a single key (from a single named output), e.g., `{ balance: 123n }`
+                      // Case 2: Result is a plain object. Aggressively find the single value.
                       else if (typeof readResult === 'object' && readResult !== null && !Array.isArray(readResult)) {
-                          const outputKeys = Object.keys(readResult);
-                          if (outputKeys.length === 1) {
-                              finalResult = (readResult as Record<string, any>)[outputKeys[0]];
+                          const values = Object.values(readResult);
+                          if (values.length > 0) {
+                              // This handles `{ balance: 123n }` and also more complex objects by taking the first value.
+                              finalResult = values[0];
                           }
                       }
                   }
