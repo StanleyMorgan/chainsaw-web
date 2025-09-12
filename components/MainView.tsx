@@ -296,7 +296,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                     throw new Error("Function name for embedded read could not be determined.");
                   }
                   
-                  // --- START DIAGNOSTIC ---
                   const readResult = await readContract(wagmiConfig, {
                       address: execReadConfig.address as `0x${string}`,
                       abi: abi,
@@ -311,28 +310,33 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   if (!functionAbi || !functionAbi.outputs || functionAbi.outputs.length !== 1) {
                       throw new Error(`$read call must point to a function with exactly one output. Found ${functionAbi?.outputs?.length ?? 0}.`);
                   }
+                  
+                  // Robustly extract the single primitive value from the result.
+                  let value = readResult;
 
-                  let finalResult: any;
+                  // Case 1: Result is an array -> get the first element.
+                  if (Array.isArray(value)) {
+                      value = value[0];
+                  }
+
+                  // Case 2: Result is an object (for named outputs) -> get the value by name.
                   const outputDef = functionAbi.outputs[0];
+                  if (typeof value === 'object' && value !== null && outputDef.name && outputDef.name in value) {
+                      value = (value as Record<string, any>)[outputDef.name];
+                  }
 
-                  if (typeof readResult === 'object' && readResult !== null && !Array.isArray(readResult) && outputDef.name && outputDef.name in readResult) {
-                      finalResult = (readResult as Record<string, any>)[outputDef.name];
-                  } else {
-                      finalResult = readResult;
+                  // Now, `value` should be the primitive (e.g., bigint).
+                  // Convert it to a string for safety before it's passed to the transaction encoder.
+                  if (typeof value === 'bigint') {
+                      return value.toString();
                   }
                   
-                  console.log("--- CHAINSAW DIAGNOSTICS ---");
-                  console.log("Raw Result from contract:", readResult);
-                  console.log("Type of Raw Result:", typeof readResult);
-                  console.log("Value Extracted by App:", finalResult);
-                  console.log("Type of Extracted Value:", typeof finalResult);
-                  console.log("----------------------------");
-                  showNotification('Diagnostic data logged to browser console. Please open it (F12) and share the output.', 'info', 10000);
+                  // If it's still an object, something went wrong.
+                  if (typeof value === 'object' && value !== null) {
+                      throw new Error('Failed to extract a single primitive value from read result.');
+                  }
 
-                  // We throw an error here to stop the execution flow intentionally for diagnostics.
-                  // This will be caught by the Promise.all handler below.
-                  throw new Error("DIAGNOSTIC_HALT");
-                  // --- END DIAGNOSTIC ---
+                  return value;
               })();
               readPromises.push(promise);
           } else if (typeof arg === 'string' && arg === '$userAddress') {
@@ -352,12 +356,10 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   processedArgs[originalIndex] = result;
               });
           } catch (error: any) {
-              if (error.message !== "DIAGNOSTIC_HALT") {
-                const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
-                showNotification(`Embedded read failed: ${message}`, 'error');
-                console.error("Embedded Read Error:", error);
-              }
-              return null; // Indicates failure or diagnostic halt
+              const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
+              showNotification(`Embedded read failed: ${message}`, 'error');
+              console.error("Embedded Read Error:", error);
+              return null;
           }
       }
 
