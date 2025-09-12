@@ -211,41 +211,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     throw new Error('Failed to extract a single primitive value from read result object.');
   }, []);
 
-  const executeRead = useCallback(async (config: ButtonConfig, args: any[] = []): Promise<any | null> => {
-    if (!isConnected || !address) return null;
-    
-    const execConfig = getExecutionConfig(config);
-    const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
-    if (!networkReady) return null;
-
-    try {
-      if (!execConfig.functionName) {
-        throw new Error("Function name could not be determined from ABI.");
-      }
-      // FIX: Set `account: undefined` to resolve a wagmi v2 type error where `readContract`
-      // incorrectly requires transaction-related properties. This helps TypeScript
-      // infer the correct overload for a read-only call.
-      // FIX: Added `authorizationList: undefined` to address a wagmi v2 type error
-      // where `readContract` incorrectly requires a transaction-related property.
-      const data = await readContract(wagmiConfig, {
-        address: execConfig.address as `0x${string}`,
-        abi: execConfig.abi as Abi,
-        functionName: execConfig.functionName,
-        args: args,
-        chainId: execConfig.id,
-        account: undefined,
-        authorizationList: undefined,
-      });
-      showNotification(`Result: ${formatReadData(data)}`, 'read', 5000);
-      return data;
-    } catch (error: any) {
-      const message = error.shortMessage || error.message;
-      showNotification(`Read error: ${message.split(/[\(.]/)[0]}`, 'error');
-      console.error(error);
-      return null;
-    }
-  }, [isConnected, address, wagmiConfig, switchNetworkIfNeeded, getExecutionConfig, showNotification]);
-
   const processArgsForReads = useCallback(async (
     args: (string | number | ReadCall)[] | undefined,
     parentConfig: ButtonConfig
@@ -323,6 +288,47 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     }
     return processedArgs;
   }, [address, showNotification, wagmiConfig, switchNetworkIfNeeded, getExecutionConfig, extractSingleValue]);
+
+  const executeRead = useCallback(async (config: ButtonConfig, args: any[] = []): Promise<any | null> => {
+    if (!isConnected || !address) return null;
+    
+    const execConfig = getExecutionConfig(config);
+    const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
+    if (!networkReady) return null;
+
+    try {
+      if (!execConfig.functionName) {
+        throw new Error("Function name could not be determined from ABI.");
+      }
+      
+      const processedArgs = await processArgsForReads(args, execConfig);
+      if (processedArgs === null) {
+        return null; // Error during arg processing, notification was already shown
+      }
+
+      // FIX: Set `account: undefined` to resolve a wagmi v2 type error where `readContract`
+      // incorrectly requires transaction-related properties. This helps TypeScript
+      // infer the correct overload for a read-only call.
+      // FIX: Added `authorizationList: undefined` to address a wagmi v2 type error
+      // where `readContract` incorrectly requires a transaction-related property.
+      const data = await readContract(wagmiConfig, {
+        address: execConfig.address as `0x${string}`,
+        abi: execConfig.abi as Abi,
+        functionName: execConfig.functionName,
+        args: processedArgs,
+        chainId: execConfig.id,
+        account: undefined,
+        authorizationList: undefined,
+      });
+      showNotification(`Result: ${formatReadData(data)}`, 'read', 5000);
+      return data;
+    } catch (error: any) {
+      const message = error.shortMessage || error.message;
+      showNotification(`Read error: ${message.split(/[\(.]/)[0]}`, 'error');
+      console.error(error);
+      return null;
+    }
+  }, [isConnected, address, wagmiConfig, switchNetworkIfNeeded, getExecutionConfig, showNotification, processArgsForReads]);
   
   const handleTransaction = useCallback(async (config: ButtonConfig, args?: any[]) => {
     if (!isConnected || !address) return;
