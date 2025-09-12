@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from './Notification';
@@ -454,65 +453,70 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-        <div className="md:col-span-12">
-          {isConnected ? (
-             <div className="space-y-6">
-                {visibleButtonKeys.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                        {visibleButtonKeys.map(key => (
-                           <div
-                              key={key}
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, key)}
-                              onDragOver={handleDragOver}
-                              onDrop={(e) => handleDrop(e, key)}
-                              onDragEnd={handleDragEnd}
-                              onMouseEnter={() => setHoveredDescription(settings[key]?.description || 'No description available.')}
-                              className="cursor-move"
-                           >
-                              <ActionButton
-                                buttonKey={key}
-                                config={settings[key]}
-                                onClick={() => handleButtonClick(key, settings[key])}
-                              />
-                           </div>
-                        ))}
+      <div>
+        {isConnected ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+            {/* Left Sidebar */}
+            <div className="lg:col-span-4 xl:col-span-3">
+                <div className="lg:sticky lg:top-24 space-y-4">
+                    {/* Description Panel */}
+                    <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 min-h-[80px] flex items-center justify-center">
+                        <p className="text-gray-400 italic text-center">{hoveredDescription}</p>
                     </div>
-                ) : (
-                    <div className="text-center py-12 text-gray-500">
-                        <p className="mb-4">No buttons are visible.</p>
-                        <p>Go to Settings to configure or enable them.</p>
-                    </div>
-                )}
-                
-                <div className="mt-6 p-4 bg-gray-800 rounded-lg border border-gray-700 min-h-[60px] flex items-center justify-center">
-                    <p className="text-gray-400 italic text-center">{hoveredDescription}</p>
+                    {/* Add Button */}
+                    <button
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="w-full bg-green-600 text-white rounded-lg py-3 px-4 shadow-lg hover:bg-green-700 transition-colors duration-200 flex items-center justify-center font-semibold"
+                        title="Add New Button"
+                        aria-label="Add New Button"
+                    >
+                        <PlusIcon className="w-6 h-6 mr-2" />
+                        <span>Add Button</span>
+                    </button>
                 </div>
             </div>
-          ) : (
-            <div className="text-center py-20">
-              <h2 className="text-3xl font-bold mb-4">Welcome to Chainsaw</h2>
-              <p className="text-gray-400 mb-8 max-w-xl mx-auto">The ultimate tool for power users to interact with smart contracts. Connect your wallet to get started.</p>
-              <div className="flex justify-center">
-                <ConnectButton />
-              </div>
+
+            {/* Main content area for buttons */}
+            <div className="lg:col-span-8 xl:col-span-9">
+              {visibleButtonKeys.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {visibleButtonKeys.map(key => (
+                    <div
+                      key={key}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, key)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, key)}
+                      onDragEnd={handleDragEnd}
+                      onMouseEnter={() => setHoveredDescription(settings[key]?.description || 'No description available.')}
+                      className="cursor-move"
+                    >
+                      <ActionButton
+                        buttonKey={key}
+                        config={settings[key]}
+                        onClick={() => handleButtonClick(key, settings[key])}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500 rounded-lg bg-gray-800/50 border border-gray-700/50 min-h-[200px] flex flex-col items-center justify-center">
+                  <p className="mb-4">No buttons are visible.</p>
+                  <p>Go to Settings to configure or enable them.</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="text-center py-20">
+            <h2 className="text-3xl font-bold mb-4">Welcome to Chainsaw</h2>
+            <p className="text-gray-400 mb-8 max-w-xl mx-auto">The ultimate tool for power users to interact with smart contracts. Connect your wallet to get started.</p>
+            <div className="flex justify-center">
+              <ConnectButton />
+            </div>
+          </div>
+        )}
       </div>
-      {isConnected && (
-         <div className="fixed bottom-20 right-5">
-            <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="bg-green-600 text-white rounded-full p-4 shadow-lg hover:bg-green-700 transition-colors duration-200"
-                title="Add New Button"
-                aria-label="Add New Button"
-            >
-                <PlusIcon className="w-8 h-8" />
-            </button>
-        </div>
-      )}
 
       <AddButtonModal
         isOpen={isAddModalOpen}
