@@ -224,12 +224,15 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
     let transactionData: `0x${string}` | undefined;
     try {
+        console.log('--- CHAINSAW DIAGNOSTICS: executeTransaction ---');
+        console.log('Preparing to encode transaction data with args:', args);
         if (execConfig.abi && execConfig.functionName) {
             transactionData = encodeFunctionData({ 
               abi: execConfig.abi as Abi, 
               functionName: execConfig.functionName, 
               args 
             });
+            console.log('Encoded transaction data:', transactionData);
         } else if (execConfig.data) {
             transactionData = execConfig.data as `0x${string}`;
         } else {
@@ -237,6 +240,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             return false;
         }
     } catch (error: any) {
+        console.error('--- CHAINSAW DIAGNOSTICS: FAILED at encodeFunctionData ---', error);
         showNotification(`Error encoding transaction data: ${error.message}`, 'error');
         return false;
     }
@@ -265,78 +269,91 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   }, [isConnected, address, showNotification, sendTransaction, switchNetworkIfNeeded]);
   
   const processArgsForReads = useCallback(async (parentConfig: ButtonConfig, args: any[]): Promise<any[] | null> => {
+      console.log('--- CHAINSAW DIAGNOSTICS: processArgsForReads START ---');
+      console.log('Initial args:', args);
       const processedArgs = [...args];
       const readPromises: Promise<any>[] = [];
       const readIndices: number[] = [];
 
       for (const [index, arg] of processedArgs.entries()) {
           if (isReadCall(arg)) {
+              console.log(`[Index ${index}] Found $read call.`);
               readIndices.push(index);
               const readConfig = arg.$read;
 
               const promise = (async () => {
-                  const nestedArgs = await processArgsForReads(parentConfig, readConfig.args);
-                  if (nestedArgs === null) {
-                      throw new Error(`Failed to resolve arguments for nested read at index ${index}.`);
+                  try {
+                      console.log(`[Index ${index}] Executing $read promise.`);
+                      const nestedArgs = await processArgsForReads(parentConfig, readConfig.args);
+                      if (nestedArgs === null) {
+                          throw new Error(`Failed to resolve arguments for nested read at index ${index}.`);
+                      }
+                      
+                      const targetAddress = readConfig.address || parentConfig.address;
+                      const targetId = parentConfig.id;
+                      
+                      const networkReady = await switchNetworkIfNeeded(targetId, parentConfig);
+                      if (!networkReady) {
+                          throw new Error(`Network switch failed for read call at index ${index}.`);
+                      }
+
+                      const abi = readConfig.abi as Abi;
+                      const execReadConfig = getExecutionConfig({ ...readConfig, address: targetAddress, id: targetId, value: parentConfig.value, color: parentConfig.color });
+                      const functionName = execReadConfig.functionName;
+
+                      if (!functionName) throw new Error("Function name for embedded read could not be determined.");
+                      
+                      const readResult = await readContract(wagmiConfig, {
+                          address: execReadConfig.address as `0x${string}`,
+                          abi: abi,
+                          functionName: functionName,
+                          args: nestedArgs,
+                          chainId: targetId,
+                          authorizationList: undefined,
+                      });
+
+                      console.log(`[Index ${index}] Raw Result From Contract:`, readResult);
+                      console.log(`[Index ${index}] Raw Result Type:`, typeof readResult);
+
+                      const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
+                      if (!functionAbi || !functionAbi.outputs || functionAbi.outputs.length !== 1) {
+                          throw new Error(`$read call must point to a function with exactly one output. Found ${functionAbi?.outputs?.length ?? 0}.`);
+                      }
+                      
+                      let value = readResult;
+                      console.log(`[Index ${index}] Initial value for extraction:`, value);
+
+                      if (Array.isArray(value)) {
+                          value = value[0];
+                          console.log(`[Index ${index}] Value after array extraction:`, value);
+                      }
+
+                      const outputDef = functionAbi.outputs[0];
+                      if (typeof value === 'object' && value !== null && outputDef.name && outputDef.name in value) {
+                          value = (value as Record<string, any>)[outputDef.name];
+                          console.log(`[Index ${index}] Value after object extraction:`, value);
+                      }
+                      
+                      console.log(`[Index ${index}] Final Extracted Value:`, value);
+                      console.log(`[Index ${index}] Final Extracted Value Type:`, typeof value);
+
+                      if (typeof value === 'bigint') {
+                          const finalValue = value.toString();
+                          console.log(`[Index ${index}] CONVERTED bigint to string. Returning: "${finalValue}"`);
+                          return finalValue;
+                      }
+                      
+                      if (typeof value === 'object' && value !== null) {
+                          console.error(`[Index ${index}] ERROR: Extracted value is still an object!`, value);
+                          throw new Error('Failed to extract a single primitive value from read result.');
+                      }
+
+                      console.log(`[Index ${index}] RETURNING value as is:`, value);
+                      return value;
+                  } catch (e) {
+                      console.error(`[Index ${index}] ERROR inside $read promise:`, e);
+                      throw e;
                   }
-
-                  const targetAddress = readConfig.address || parentConfig.address;
-                  const targetId = parentConfig.id;
-                  
-                  const networkReady = await switchNetworkIfNeeded(targetId, parentConfig);
-                  if (!networkReady) {
-                      throw new Error(`Network switch failed for read call at index ${index}.`);
-                  }
-
-                  const abi = readConfig.abi as Abi;
-                  const execReadConfig = getExecutionConfig({ ...readConfig, address: targetAddress, id: targetId, value: parentConfig.value, color: parentConfig.color });
-                  const functionName = execReadConfig.functionName;
-
-                  if (!functionName) {
-                    throw new Error("Function name for embedded read could not be determined.");
-                  }
-                  
-                  const readResult = await readContract(wagmiConfig, {
-                      address: execReadConfig.address as `0x${string}`,
-                      abi: abi,
-                      functionName: functionName,
-                      args: nestedArgs,
-                      chainId: targetId,
-                      authorizationList: undefined,
-                  });
-
-                  const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
-
-                  if (!functionAbi || !functionAbi.outputs || functionAbi.outputs.length !== 1) {
-                      throw new Error(`$read call must point to a function with exactly one output. Found ${functionAbi?.outputs?.length ?? 0}.`);
-                  }
-                  
-                  // Robustly extract the single primitive value from the result.
-                  let value = readResult;
-
-                  // Case 1: Result is an array -> get the first element.
-                  if (Array.isArray(value)) {
-                      value = value[0];
-                  }
-
-                  // Case 2: Result is an object (for named outputs) -> get the value by name.
-                  const outputDef = functionAbi.outputs[0];
-                  if (typeof value === 'object' && value !== null && outputDef.name && outputDef.name in value) {
-                      value = (value as Record<string, any>)[outputDef.name];
-                  }
-
-                  // Now, `value` should be the primitive (e.g., bigint).
-                  // Convert it to a string for safety before it's passed to the transaction encoder.
-                  if (typeof value === 'bigint') {
-                      return value.toString();
-                  }
-                  
-                  // If it's still an object, something went wrong.
-                  if (typeof value === 'object' && value !== null) {
-                      throw new Error('Failed to extract a single primitive value from read result.');
-                  }
-
-                  return value;
               })();
               readPromises.push(promise);
           } else if (typeof arg === 'string' && arg === '$userAddress') {
@@ -351,22 +368,26 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       if (readPromises.length > 0) {
           try {
               const readResults = await Promise.all(readPromises);
+              console.log('All read promises resolved. Results:', readResults);
               readResults.forEach((result, i) => {
                   const originalIndex = readIndices[i];
                   processedArgs[originalIndex] = result;
               });
           } catch (error: any) {
               const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
+              console.error('--- CHAINSAW DIAGNOSTICS: ERROR resolving promises ---', error);
               showNotification(`Embedded read failed: ${message}`, 'error');
-              console.error("Embedded Read Error:", error);
               return null;
           }
       }
 
+      console.log('Final processed args:', processedArgs);
+      console.log('--- CHAINSAW DIAGNOSTICS: processArgsForReads END ---');
       return processedArgs;
   }, [address, showNotification, switchNetworkIfNeeded, wagmiConfig]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
+    console.log('--- CHAINSAW DIAGNOSTICS: handleTransaction START ---');
     if (!isConnected) {
         showNotification('Please connect your wallet first.', 'info');
         return;
@@ -402,7 +423,9 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         }
     }
     
+    console.log('Calling processArgsForReads with args:', executionConfig.args);
     const finalArgs = await processArgsForReads(executionConfig, executionConfig.args || []);
+    console.log('processArgsForReads returned:', finalArgs);
     if (finalArgs === null) return; // Error occurred and was notified
 
     if (executionConfig.readOnly) {
@@ -537,7 +560,10 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   <ActionButton
                     buttonKey={key}
                     config={config}
-                    onClick={() => handleTransaction(key, config)}
+                    onClick={() => {
+                      console.log(`--- CHAINSAW DIAGNOSTICS: Button "${key}" clicked ---`);
+                      handleTransaction(key, config);
+                    }}
                   />
                 </div>
               );
