@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from './Notification';
@@ -291,19 +292,28 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       authorizationList: undefined,
                   });
                   
-                  // If the result is an array with a single element, and the function ABI confirms
-                  // a single output, unwrap it. This prevents errors if a read call unexpectedly
-                  // returns `[value]` instead of `value`.
-                  if (Array.isArray(readResult) && readResult.length === 1) {
-                      const functionAbi = abi.find(
-                          (item): item is AbiFunction => item.type === 'function' && item.name === functionName
-                      );
-                      if (functionAbi && functionAbi.outputs.length === 1) {
-                          return readResult[0];
+                  let finalResult = readResult;
+                  const functionAbi = abi.find(
+                      (item): item is AbiFunction => item.type === 'function' && item.name === functionName
+                  );
+
+                  // If the function has exactly one output, we might need to unwrap the result
+                  // to get the raw value, as wagmi/viem can return it as an array or object.
+                  if (functionAbi && functionAbi.outputs.length === 1) {
+                      // Case 1: Result is an array with a single element, e.g., `[ 123n ]`
+                      if (Array.isArray(readResult) && readResult.length === 1) {
+                          finalResult = readResult[0];
+                      } 
+                      // Case 2: Result is an object with a single key (from a single named output), e.g., `{ balance: 123n }`
+                      else if (typeof readResult === 'object' && readResult !== null && !Array.isArray(readResult)) {
+                          const outputKeys = Object.keys(readResult);
+                          if (outputKeys.length === 1) {
+                              finalResult = readResult[outputKeys[0]];
+                          }
                       }
                   }
                   
-                  return readResult;
+                  return finalResult;
               })();
               readPromises.push(promise);
           } else if (typeof arg === 'string' && arg === '$userAddress') {
