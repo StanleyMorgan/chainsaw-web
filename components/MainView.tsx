@@ -292,14 +292,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       authorizationList: undefined,
                   });
                   
-                  // DEBUGGING STEP: Show the raw result and halt execution.
-                  const debugMessage = `[Debug] Raw read result:\n${JSON.stringify(readResult, (_key, value) => 
-                      typeof value === 'bigint' ? value.toString() + 'n' : value, 2
-                  )}`;
-                  showNotification(debugMessage, 'info', 20000); // Show for 20 seconds.
-                  throw new Error('Debugging read result. Transaction halted.');
-
-                  /*
                   let finalResult = readResult;
                   const functionAbi = abi.find(
                       (item): item is AbiFunction => item.type === 'function' && item.name === functionName
@@ -341,7 +333,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   }
                   
                   return finalResult;
-                  */
               })();
               readPromises.push(promise);
           } else if (typeof arg === 'string' && arg === '$userAddress') {
