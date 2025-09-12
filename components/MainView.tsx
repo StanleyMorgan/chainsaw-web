@@ -226,6 +226,8 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       // FIX: Set `account: undefined` to resolve a wagmi v2 type error where `readContract`
       // incorrectly requires transaction-related properties. This helps TypeScript
       // infer the correct overload for a read-only call.
+      // FIX: Added `authorizationList: undefined` to address a wagmi v2 type error
+      // where `readContract` incorrectly requires a transaction-related property.
       const data = await readContract(wagmiConfig, {
         address: execConfig.address as `0x${string}`,
         abi: execConfig.abi as Abi,
@@ -233,6 +235,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         args: args,
         chainId: execConfig.id,
         account: undefined,
+        authorizationList: undefined,
       });
       showNotification(`Result: ${formatReadData(data)}`, 'read', 5000);
       return data;
@@ -265,6 +268,13 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
           value: parentConfig.value, // Dummy value to satisfy type
         });
         
+        // FIX: Add a guard to ensure functionName is defined before it's used.
+        // This resolves a TypeScript error where `undefined` could be passed to `readContract`.
+        if (!readCallConfig.functionName) {
+            showNotification(`Function name could not be determined from ABI for $read call.`, 'error');
+            return null;
+        }
+
         const abi = readCallConfig.abi as Abi;
         const funcAbi = abi.find(
           (item): item is AbiFunction => item.type === 'function' && item.name === readCallConfig.functionName
@@ -285,6 +295,8 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
           // FIX: Set `account: undefined` to resolve a wagmi v2 type error where `readContract`
           // incorrectly requires transaction-related properties. This helps TypeScript
           // infer the correct overload for a read-only call.
+          // FIX: Added `authorizationList: undefined` to address a wagmi v2 type error
+          // where `readContract` incorrectly requires a transaction-related property.
           const readResult = await readContract(wagmiConfig, {
             address: readCallConfig.address as `0x${string}`,
             abi: readCallConfig.abi as Abi,
@@ -292,6 +304,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             args: processedReadArgs,
             chainId: parentConfig.id,
             account: undefined,
+            authorizationList: undefined,
           });
           
           const finalValue = extractSingleValue(readResult, funcAbi);
