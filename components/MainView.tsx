@@ -60,10 +60,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [currentConfigForInput, setCurrentConfigForInput] = useState<{ key: string; config: ButtonConfig } | null>(null);
   
-  const [readData, setReadData] = useState<any>(null);
-  const [isReading, setIsReading] = useState(false);
-  const [readError, setReadError] = useState<string | null>(null);
-
   const draggedItemKey = useRef<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, key: string) => {
@@ -214,35 +210,30 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
     if (!networkReady) return null;
 
-    setIsReading(true);
-    setReadData(null);
-    setReadError(null);
-
     try {
       if (!execConfig.functionName) {
         throw new Error("Function name could not be determined from ABI.");
       }
-      // FIX: The `chainId` parameter is removed to resolve a TypeScript error where `authorizationList` was
-      // unexpectedly required. This is likely due to a type definition issue in wagmi. The `switchNetworkIfNeeded`
-      // call preceding this ensures the wallet is on the correct network for the read.
+      // FIX: The wagmi `readContract` action was incorrectly inferring transaction-related types,
+      // causing a TypeScript error. Explicitly passing the `chainId` forces it to use a public
+      // client with the correct read-only type signature, resolving the issue.
       const data = await readContract(wagmiConfig, {
         address: execConfig.address as `0x${string}`,
         abi: execConfig.abi as Abi,
         functionName: execConfig.functionName,
         args,
+        chainId: execConfig.id,
       });
 
-      setReadData(data);
+      showNotification(formatReadData(data), 'read', 5000);
       return data;
     } catch (error: any) {
       const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
-      setReadError(`Read failed: ${message}`);
+      showNotification(`Read failed: ${message}`, 'error');
       console.error("Read Contract Error:", error);
       return null;
-    } finally {
-      setIsReading(false);
     }
-  }, [isConnected, address, wagmiConfig, switchNetworkIfNeeded, getExecutionConfig]);
+  }, [isConnected, address, wagmiConfig, switchNetworkIfNeeded, getExecutionConfig, showNotification]);
   
   const executeTransaction = useCallback(async (config: ButtonConfig, args: any[] = []): Promise<boolean> => {
     if (!isConnected || !address) {
@@ -329,14 +320,15 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
                   if (!functionAbi) throw new Error(`Function "${functionName}" not found in embedded ABI.`);
 
-                  // FIX: The `chainId` parameter is removed to resolve a TypeScript error where `authorizationList` was
-                  // unexpectedly required. This is likely due to a type definition issue in wagmi. The `switchNetworkIfNeeded`
-                  // call preceding this ensures the wallet is on the correct network for the read.
+                  // FIX: The wagmi `readContract` action was incorrectly inferring transaction-related types,
+                  // causing a TypeScript error. Explicitly passing the `chainId` forces it to use a public
+                  // client with the correct read-only type signature, resolving the issue.
                   const readResult = await readContract(wagmiConfig, {
                       address: execReadConfig.address as `0x${string}`,
                       abi: abi,
                       functionName: functionName,
                       args: nestedArgs,
+                      chainId: targetId,
                   });
 
                   const value = extractSingleValue(readResult, functionAbi);
@@ -376,8 +368,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     }
     
     setHoveredDescription(config.description || 'No description available for this action.');
-    setReadData(null);
-    setReadError(null);
 
     const executionConfig = getExecutionConfig(config);
 
@@ -511,14 +501,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
               Add Button
             </button>
             
-            {/* Read Result Panel */}
-            <div className="bg-gray-800 p-4 rounded-lg self-start w-full">
-              <div className="h-24 overflow-y-auto text-gray-300 font-mono text-sm" aria-live="polite">
-                  {isReading && <p className="animate-pulse">Reading from contract...</p>}
-                  {readError && <pre className="text-red-400 whitespace-pre-wrap">{readError}</pre>}
-                  {readData !== null && <pre className="whitespace-pre-wrap">{formatReadData(readData)}</pre>}
-              </div>
-            </div>
           </div>
 
 
