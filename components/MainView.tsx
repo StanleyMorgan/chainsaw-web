@@ -4,7 +4,7 @@ import type { NotificationData } from './Notification';
 import { useAccount, useSendTransaction, useConfig } from 'wagmi';
 // FIX: `addChain` is no longer exported from `wagmi/actions`. Replaced with `getWalletClient` to use the viem client's `addChain` method.
 // FIX: `readContract`, `switchChain`, and `getWalletClient` are now imported from `@wagmi/core` in wagmi v2 to fix type errors.
-import { readContract, switchChain, getWalletClient } from '@wagmi/core';
+import { readContract, getWalletClient } from '@wagmi/core';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
@@ -94,12 +94,19 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   };
   
   const switchNetworkIfNeeded = useCallback(async (targetChainId: number, chainConfig?: ButtonConfig) => {
-    if (!isConnected || chainId === targetChainId) {
+    if (!isConnected || !address || chainId === targetChainId) {
         return true;
     }
 
     try {
-        await switchChain(wagmiConfig, { chainId: targetChainId });
+        const client = await getWalletClient(wagmiConfig);
+        if (!client) {
+            showNotification('Wallet client not available.', 'error');
+            return false;
+        }
+        // Use the viem client's switchChain directly to bypass wagmi's configured chains check.
+        // This restores the ability to switch to any chain the user's wallet supports.
+        await client.switchChain({ id: targetChainId });
         return true;
     } catch (switchError: any) {
         const code = switchError.cause?.code || switchError.code;
@@ -129,7 +136,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                         } : undefined,
                     }
                 });
-                await switchChain(wagmiConfig, { chainId: targetChainId });
+                await client.switchChain({ id: targetChainId });
                 return true;
             } catch (addError: any) {
                 const message = addError.message?.includes('User rejected the request')
@@ -146,7 +153,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             return false;
         }
     }
-  }, [chainId, isConnected, showNotification, wagmiConfig]);
+  }, [chainId, isConnected, address, showNotification, wagmiConfig]);
 
   // Helper to check if an argument is a special $read object
   const isReadCall = (arg: any): arg is ReadCall => {
@@ -215,252 +222,279 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         throw new Error("Function name could not be determined from ABI.");
       }
       // FIX: The wagmi `readContract` action was incorrectly inferring transaction-related types,
-      // causing a TypeScript error. Explicitly passing the `chainId` forces it to use a public
-      // client with the correct read-only type signature, resolving the issue.
+      // causing a TypeScript error. Providing `chainId` is sufficient to ensure it uses a public
+      // client, and the `account` property has been removed to fix errors with recent wagmi versions.
       const data = await readContract(wagmiConfig, {
         address: execConfig.address as `0x${string}`,
         abi: execConfig.abi as Abi,
         functionName: execConfig.functionName,
-        args,
+        args: args,
         chainId: execConfig.id,
       });
-
-      showNotification(formatReadData(data), 'read', 5000);
+      showNotification(`Result: ${formatReadData(data)}`, 'read', 5000);
       return data;
     } catch (error: any) {
-      const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
-      showNotification(`Read failed: ${message}`, 'error');
-      console.error("Read Contract Error:", error);
+      const message = error.shortMessage || error.message;
+      showNotification(`Read error: ${message.split(/[\(.]/)[0]}`, 'error');
+      console.error(error);
       return null;
     }
   }, [isConnected, address, wagmiConfig, switchNetworkIfNeeded, getExecutionConfig, showNotification]);
-  
-  const executeTransaction = useCallback(async (config: ButtonConfig, args: any[] = []): Promise<boolean> => {
-    if (!isConnected || !address) {
-        showNotification('Please connect your wallet first.', 'info');
-        return false;
-    }
-    
-    const execConfig = getExecutionConfig(config);
-    const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
-    if (!networkReady) return false;
 
-    let transactionData: `0x${string}` | undefined;
-    try {
-        if (execConfig.abi && execConfig.functionName) {
-            transactionData = encodeFunctionData({ 
-              abi: execConfig.abi as Abi, 
-              functionName: execConfig.functionName, 
-              args 
-            });
-        } else if (execConfig.data) {
-            transactionData = execConfig.data as `0x${string}`;
-        } else {
-            showNotification('Button has no transaction data or function name could not be determined.', 'error');
-            return false;
+  const processArgsForReads = useCallback(async (
+    args: (string | number | ReadCall)[] | undefined,
+    parentConfig: ButtonConfig
+  ): Promise<any[] | null> => {
+    if (!args) return [];
+    if (!address) {
+      showNotification('Wallet not connected.', 'error');
+      return null;
+    }
+
+    const processedArgs = [];
+    for (const arg of args) {
+      if (isReadCall(arg)) {
+        const readCallConfig = getExecutionConfig({
+          ...arg.$read,
+          id: parentConfig.id, // Inherit parent chainId for the read call
+          address: arg.$read.address || parentConfig.address, // Inherit parent address if not specified
+          color: parentConfig.color, // Dummy value to satisfy type
+          value: parentConfig.value, // Dummy value to satisfy type
+        });
+        
+        const abi = readCallConfig.abi as Abi;
+        const funcAbi = abi.find(
+          (item): item is AbiFunction => item.type === 'function' && item.name === readCallConfig.functionName
+        );
+
+        if (!funcAbi) {
+          showNotification(`Function '${readCallConfig.functionName}' not found in ABI for $read call.`, 'error');
+          return null;
         }
-    } catch (error: any) {
-        showNotification(`Error encoding transaction data: ${error.message}`, 'error');
-        return false;
-    }
-    
-    return new Promise((resolve) => {
-      sendTransaction({
-          to: execConfig.address as `0x${string}`,
-          value: execConfig.value ? BigInt(execConfig.value) : undefined,
-          data: transactionData,
-          gas: execConfig.gas ? BigInt(execConfig.gas) : undefined,
-      }, {
-          onSuccess: (hash) => {
-              showNotification(`Transaction sent! Hash: ${hash.slice(0,10)}...`, 'success');
-              resolve(true);
-          },
-          onError: (error) => {
-              const message = error.message.includes('User rejected the request') 
-                  ? 'Transaction rejected.' 
-                  : `Transaction failed: ${error.message.split(/[\(.]/)[0]}`;
 
-              showNotification(message, 'info');
-              resolve(false);
-          }
-      });
-    });
-  }, [isConnected, address, showNotification, sendTransaction, switchNetworkIfNeeded, getExecutionConfig]);
-  
-  const processArgsForReads = useCallback(async (parentConfig: ButtonConfig, args: any[]): Promise<any[] | null> => {
-      const processedArgs = [...args];
-      const readPromises: Promise<any>[] = [];
-      const readIndices: number[] = [];
+        const processedReadArgs = await processArgsForReads(arg.$read.args, parentConfig);
+        if (processedReadArgs === null) return null;
 
-      for (const [index, arg] of processedArgs.entries()) {
-          if (isReadCall(arg)) {
-              readIndices.push(index);
-              const readConfig = arg.$read;
+        const networkReady = await switchNetworkIfNeeded(parentConfig.id, parentConfig);
+        if (!networkReady) return null;
 
-              const promise = (async () => {
-                  const targetAddress = readConfig.address || parentConfig.address;
-                  const targetId = parentConfig.id;
-                  
-                  const nestedArgs = await processArgsForReads(parentConfig, readConfig.args);
-                  if (nestedArgs === null) {
-                      throw new Error(`Failed to resolve arguments for nested read at index ${index}.`);
-                  }
-                  
-                  const networkReady = await switchNetworkIfNeeded(targetId, parentConfig);
-                  if (!networkReady) {
-                      throw new Error(`Network switch failed for read call at index ${index}.`);
-                  }
-
-                  const abi = readConfig.abi as Abi;
-                  const execReadConfig = getExecutionConfig({ ...readConfig, address: targetAddress, id: targetId, value: '', color: '' });
-                  const functionName = execReadConfig.functionName;
-
-                  if (!functionName) throw new Error("Function name for embedded read could not be determined.");
-                  
-                  const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
-                  if (!functionAbi) throw new Error(`Function "${functionName}" not found in embedded ABI.`);
-
-                  // FIX: The wagmi `readContract` action was incorrectly inferring transaction-related types,
-                  // causing a TypeScript error. Explicitly passing the `chainId` forces it to use a public
-                  // client with the correct read-only type signature, resolving the issue.
-                  const readResult = await readContract(wagmiConfig, {
-                      address: execReadConfig.address as `0x${string}`,
-                      abi: abi,
-                      functionName: functionName,
-                      args: nestedArgs,
-                      chainId: targetId,
-                  });
-
-                  const value = extractSingleValue(readResult, functionAbi);
-                  return typeof value === 'bigint' ? value.toString() : value;
-              })();
-              readPromises.push(promise);
-          } else if (typeof arg === 'string' && arg === '$userAddress') {
-              if (!address) {
-                  showNotification('Wallet not connected.', 'error');
-                  return null;
-              }
-              processedArgs[index] = address;
-          }
-      }
-
-      if (readPromises.length > 0) {
-          try {
-              const readResults = await Promise.all(readPromises);
-              readResults.forEach((result, i) => {
-                  const originalIndex = readIndices[i];
-                  processedArgs[originalIndex] = result;
-              });
-          } catch (error: any) {
-              const message = error.shortMessage || error.message?.split(/[\(.]/)[0] || "An unknown error occurred.";
-              showNotification(`Embedded read failed: ${message}`, 'error');
-              return null;
-          }
-      }
-
-      return processedArgs;
-  }, [address, showNotification, switchNetworkIfNeeded, wagmiConfig, getExecutionConfig, extractSingleValue]);
-
-  const handleTransaction = async (key: string, config: ButtonConfig) => {
-    if (!isConnected) {
-        showNotification('Please connect your wallet first.', 'info');
-        return;
-    }
-    
-    setHoveredDescription(config.description || 'No description available for this action.');
-
-    const executionConfig = getExecutionConfig(config);
-
-    if (executionConfig.abi) {
         try {
-            const abi = executionConfig.abi as Abi;
-            const functionAbi = abi.find(
-                (item): item is AbiFunction => item.type === 'function' && item.name === executionConfig.functionName
-            );
-
-            // A function might not have an `inputs` property in its ABI if it takes no arguments.
-            // Default to an empty array to prevent errors when calling `.some()`.
-            const functionInputs = functionAbi?.inputs || [];
-
-            const needsUserInput = functionInputs.some((_input, index) => {
-                const arg = executionConfig.args?.[index];
-                return !isReadCall(arg) && (arg === null || arg === undefined || arg === '');
-            });
-            
-            if (needsUserInput) {
-                setCurrentConfigForInput({ key, config });
-                setIsInputModalOpen(true);
-                return;
-            }
+          // FIX: The `account` property was removed from the `readContract` call to prevent type errors with recent wagmi versions.
+          // Providing `chainId` ensures the correct public client is used.
+          const readResult = await readContract(wagmiConfig, {
+            address: readCallConfig.address as `0x${string}`,
+            abi: readCallConfig.abi as Abi,
+            functionName: readCallConfig.functionName,
+            args: processedReadArgs,
+            chainId: parentConfig.id,
+          });
+          
+          const finalValue = extractSingleValue(readResult, funcAbi);
+          processedArgs.push(finalValue);
 
         } catch (error: any) {
-            showNotification(`ABI Error: ${error.message}`, 'error');
-            return;
+          const message = error.shortMessage || error.message;
+          showNotification(`$read error: ${message.split(/[\(.]/)[0]}`, 'error');
+          console.error(error);
+          return null;
         }
+      } else if (arg === '$userAddress') {
+        processedArgs.push(address);
+      } else {
+        processedArgs.push(arg);
+      }
+    }
+    return processedArgs;
+  }, [address, showNotification, wagmiConfig, switchNetworkIfNeeded, getExecutionConfig, extractSingleValue]);
+  
+  const handleTransaction = useCallback(async (config: ButtonConfig, args?: any[]) => {
+    if (!isConnected || !address) return;
+
+    const execConfig = getExecutionConfig(config);
+    const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
+    if (!networkReady) return;
+
+    try {
+        let finalArgs: any[] | null = [];
+        // Only process args if there's an ABI. For raw data transactions, args are not used.
+        if (execConfig.abi) {
+            finalArgs = await processArgsForReads(args || execConfig.args, execConfig);
+            if (finalArgs === null) return; // Error occurred during arg processing
+        }
+
+        let txData: `0x${string}` | undefined;
+        if (execConfig.data) {
+            txData = execConfig.data as `0x${string}`;
+        } else if (execConfig.abi && execConfig.functionName) {
+            txData = encodeFunctionData({
+                abi: execConfig.abi as Abi,
+                functionName: execConfig.functionName,
+                args: finalArgs,
+            });
+        }
+
+        if (!txData) {
+            // FIX: Check if there are inputs. If not, don't show an error, as it's a valid call.
+            const func = (execConfig.abi as Abi)?.find(
+                (item): item is AbiFunction => item.type === 'function' && item.name === execConfig.functionName
+            );
+            if (func && func.inputs?.length > 0) {
+                 showNotification('Button has no transaction data and the ABI function requires arguments. Please configure arguments.', 'error');
+                 return;
+            } else if (!func) {
+                showNotification('Button has no transaction data.', 'error');
+                return;
+            }
+        }
+        
+        sendTransaction({
+            to: execConfig.address as `0x${string}`,
+            value: BigInt(execConfig.value),
+            data: txData,
+            gas: execConfig.gas ? BigInt(execConfig.gas) : undefined,
+            chainId: execConfig.id,
+        }, {
+            onSuccess: (hash) => showNotification(`Transaction sent! Hash: ${hash}`, 'success'),
+            onError: (error) => {
+                const message = error.message.split(/[\(.]/)[0];
+                showNotification(`Transaction failed: ${message}`, 'error');
+            }
+        });
+    } catch (error: any) {
+        console.error(error);
+        showNotification(`An unexpected error occurred: ${error.message}`, 'error');
+    }
+  }, [isConnected, address, switchNetworkIfNeeded, getExecutionConfig, processArgsForReads, sendTransaction, showNotification]);
+
+  const handleButtonClick = (key: string, config: ButtonConfig) => {
+    if (!isConnected || !address) {
+      showNotification('Please connect your wallet first.', 'info');
+      return;
     }
     
-    const finalArgs = await processArgsForReads(executionConfig, executionConfig.args || []);
-    if (finalArgs === null) return; // Error occurred and was notified
+    if (config.type === 'chained' && config.steps) {
+        // Chained transaction logic would go here.
+        // For now, we just show a message.
+        showNotification("Chained actions are not yet implemented.", "info");
+        return;
+    }
 
-    if (executionConfig.readOnly) {
-      await executeRead(executionConfig, finalArgs);
+    const execConfig = getExecutionConfig(config);
+    if (execConfig.readOnly) {
+      executeRead(execConfig, execConfig.args as any[]);
+      return;
+    }
+    
+    let argsToProcess: (string | number | ReadCall)[] | undefined = execConfig.args;
+    let hasEmptyArgs = false;
+
+    if (execConfig.abi) {
+        const func = (execConfig.abi as Abi)?.find(
+          (item): item is AbiFunction => item.type === 'function' && item.name === execConfig.functionName
+        );
+
+        // Check if any defined arguments (excluding special values) are empty
+        if (func?.inputs && func.inputs.length > 0) {
+            hasEmptyArgs = func.inputs.some((input, index) => {
+                const arg = execConfig.args?.[index];
+                if (input.type === 'tuple') {
+                    // For tuples, we'd need a more complex check, but for now we assume they might need input
+                    return true;
+                }
+                return arg === undefined || arg === null || arg === '';
+            });
+        }
+    }
+
+    if (hasEmptyArgs) {
+        setCurrentConfigForInput({ key, config: execConfig });
+        setIsInputModalOpen(true);
     } else {
-      await executeTransaction(executionConfig, finalArgs);
+        handleTransaction(execConfig);
     }
   };
 
-  const handleInputModalSubmit = useCallback(async (args: any[]) => {
+  const handleInputModalSubmit = (args: any[]) => {
     if (currentConfigForInput) {
-        const { config } = currentConfigForInput;
-        const finalArgs = await processArgsForReads(config, args);
-        if (finalArgs === null) {
-            setIsInputModalOpen(false);
-            setCurrentConfigForInput(null);
-            return;
-        }
-
-        if (config.readOnly) {
-          await executeRead(config, finalArgs);
-        } else {
-          await executeTransaction(config, finalArgs);
-        }
+      handleTransaction(currentConfigForInput.config, args);
     }
     setIsInputModalOpen(false);
     setCurrentConfigForInput(null);
-  }, [currentConfigForInput, executeTransaction, executeRead, processArgsForReads]);
+  };
+  
+  const handleInputModalSave = (newArgs: any[]) => {
+    if (currentConfigForInput) {
+        const { key, config } = currentConfigForInput;
+        const newConfig = { ...config, args: newArgs };
+        handleSaveButton(key, newConfig);
+    }
+  };
+  
 
-  const handleInputModalSave = useCallback((args: any[]) => {
-    if (!currentConfigForInput) return;
-
-    const { key, config } = currentConfigForInput;
-    const updatedConfig = { ...config, args };
-    const newSettings = { ...settings, [key]: updatedConfig };
-    
-    setSettings(newSettings);
-    
-    setCurrentConfigForInput({ key, config: updatedConfig });
-  }, [currentConfigForInput, settings, setSettings]);
-
-  const handleInputModalClose = useCallback(() => {
-    setIsInputModalOpen(false);
-    setCurrentConfigForInput(null);
-  }, []);
-
-
-  const orderedVisibleKeys = buttonOrder.filter(key => visibleButtons[key] !== false);
-
-  if (!isConnected) {
-    return (
-      <div className="flex flex-col items-center justify-center text-center p-8 bg-gray-800 rounded-lg max-w-md mx-auto mt-10">
-        <h2 className="text-2xl font-bold mb-4">Welcome to Chainsaw</h2>
-        <p className="text-gray-400 mb-6">Connect your wallet to get started and interact with your pre-configured contracts.</p>
-        <ConnectButton />
-      </div>
-    );
-  }
+  const visibleButtonKeys = buttonOrder.filter(key => visibleButtons[key] !== false);
 
   return (
-    <div>
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+        <div className="md:col-span-12">
+          {isConnected ? (
+             <div className="space-y-6">
+                {visibleButtonKeys.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {visibleButtonKeys.map(key => (
+                           <div
+                              key={key}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, key)}
+                              onDragOver={handleDragOver}
+                              onDrop={(e) => handleDrop(e, key)}
+                              onDragEnd={handleDragEnd}
+                              onMouseEnter={() => setHoveredDescription(settings[key]?.description || 'No description available.')}
+                              className="cursor-move"
+                           >
+                              <ActionButton
+                                buttonKey={key}
+                                config={settings[key]}
+                                onClick={() => handleButtonClick(key, settings[key])}
+                              />
+                           </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-12 text-gray-500">
+                        <p className="mb-4">No buttons are visible.</p>
+                        <p>Go to Settings to configure or enable them.</p>
+                    </div>
+                )}
+                
+                <div className="mt-6 p-4 bg-gray-800 rounded-lg border border-gray-700 min-h-[60px] flex items-center justify-center">
+                    <p className="text-gray-400 italic text-center">{hoveredDescription}</p>
+                </div>
+            </div>
+          ) : (
+            <div className="text-center py-20">
+              <h2 className="text-3xl font-bold mb-4">Welcome to Chainsaw</h2>
+              <p className="text-gray-400 mb-8 max-w-xl mx-auto">The ultimate tool for power users to interact with smart contracts. Connect your wallet to get started.</p>
+              <div className="flex justify-center">
+                <ConnectButton />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {isConnected && (
+         <div className="fixed bottom-20 right-5">
+            <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="bg-green-600 text-white rounded-full p-4 shadow-lg hover:bg-green-700 transition-colors duration-200"
+                title="Add New Button"
+                aria-label="Add New Button"
+            >
+                <PlusIcon className="w-8 h-8" />
+            </button>
+        </div>
+      )}
+
       <AddButtonModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -468,84 +502,15 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         showNotification={showNotification}
         settings={settings}
       />
-
-      <InputModal
-          isOpen={isInputModalOpen}
-          onClose={handleInputModalClose}
-          config={currentConfigForInput ? currentConfigForInput.config : null}
-          onSubmit={handleInputModalSubmit}
-          onSave={handleInputModalSave}
-          showNotification={showNotification}
+      
+      <InputModal 
+        isOpen={isInputModalOpen}
+        onClose={() => setIsInputModalOpen(false)}
+        config={currentConfigForInput?.config || null}
+        onSubmit={handleInputModalSubmit}
+        onSave={handleInputModalSave}
+        showNotification={showNotification}
       />
-
-      {orderedVisibleKeys.length > 0 ? (
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Left Column */}
-          <div className="lg:w-1/3 lg:max-w-sm flex flex-col gap-4 order-last lg:order-first">
-            {/* Description Panel */}
-            <div className="bg-gray-800 p-6 rounded-lg self-start lg:sticky lg:top-24 w-full">
-              <h3 className="text-lg font-bold mb-4 text-gray-200 border-b border-gray-700 pb-2">
-                Action Description
-              </h3>
-              <div className="h-24 overflow-y-auto text-gray-300 font-mono text-sm">
-                  <p className="whitespace-pre-wrap">{hoveredDescription}</p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold flex items-center justify-center"
-              aria-label="Add New Button"
-            >
-              <PlusIcon className="w-5 h-5 mr-2" />
-              Add Button
-            </button>
-            
-          </div>
-
-
-          {/* Buttons Grid */}
-          <div 
-            className="lg:w-2/3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 order-first lg:order-last"
-            onMouseLeave={() => setHoveredDescription('Hover over a button to see its description.')}
-          >
-            {orderedVisibleKeys.map((key) => {
-              const config = settings[key];
-              return (
-                <div
-                  key={key}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, key)}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, key)}
-                  onDragEnd={handleDragEnd}
-                  onMouseEnter={() => setHoveredDescription(config.description || 'No description available for this action.')}
-                  className="cursor-move transition-opacity duration-200"
-                >
-                  <ActionButton
-                    buttonKey={key}
-                    config={config}
-                    onClick={() => handleTransaction(key, config)}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="text-center p-8 bg-gray-800 rounded-lg mt-10 max-w-md mx-auto">
-          <h2 className="text-xl font-semibold mb-2">No Buttons Configured</h2>
-          <p className="text-gray-400 mb-6">Go to the Settings page to configure your action buttons, or click below to add your first one.</p>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="mt-4 inline-flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold"
-            aria-label="Add New Button"
-          >
-            <PlusIcon className="w-5 h-5 mr-2" />
-            Add First Button
-          </button>
-        </div>
-      )}
-    </div>
+    </>
   );
 };
