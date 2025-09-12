@@ -308,7 +308,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       else if (typeof readResult === 'object' && readResult !== null && !Array.isArray(readResult)) {
                           const outputKeys = Object.keys(readResult);
                           if (outputKeys.length === 1) {
-                              finalResult = readResult[outputKeys[0]];
+                              finalResult = (readResult as Record<string, any>)[outputKeys[0]];
                           }
                       }
                   }
