@@ -379,7 +379,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             gas: execConfig.gas ? BigInt(execConfig.gas) : undefined,
             chainId: execConfig.id,
         }, {
-            onSuccess: (hash) => showNotification(`Transaction sent! Hash: ${hash}`, 'success'),
+            onSuccess: (hash) => showNotification('Transaction sent successfully!', 'success'),
             onError: (error) => {
                 const message = error.message.split(/[\(.]/)[0];
                 showNotification(`Transaction failed: ${message}`, 'error');
@@ -463,11 +463,14 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         {isConnected ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
             {/* Left Sidebar */}
-            <div className="lg:col-span-4 xl:col-span-3">
+            <div className="lg:col-span-5 xl:col-span-4">
                 <div className="lg:sticky lg:top-24 space-y-4">
                     {/* Description Panel */}
-                    <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 min-h-[80px] flex items-center justify-center">
-                        <p className="text-gray-400 italic text-center">{hoveredDescription}</p>
+                    <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 h-48 flex flex-col">
+                        <h3 className="text-lg font-semibold text-white mb-2 flex-shrink-0 border-b border-gray-700 pb-2">Action Description</h3>
+                        <div className="overflow-y-auto pr-2 flex-grow">
+                            <p className="text-gray-300 whitespace-pre-wrap">{hoveredDescription}</p>
+                        </div>
                     </div>
                     {/* Add Button */}
                     <button
@@ -483,7 +486,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             </div>
 
             {/* Main content area for buttons */}
-            <div className="lg:col-span-8 xl:col-span-9">
+            <div className="lg:col-span-7 xl:col-span-8">
               {visibleButtonKeys.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {visibleButtonKeys.map(key => (
