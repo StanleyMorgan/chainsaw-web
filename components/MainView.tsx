@@ -22,27 +22,6 @@ interface MainViewProps {
   showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
 }
 
-const isReadCall = (arg: any): arg is ReadCall => {
-  return typeof arg === 'object' && arg !== null && '$read' in arg;
-};
-
-// Helper function to infer functionName if an ABI has only one function.
-const getExecutionConfig = (config: ButtonConfig): ButtonConfig => {
-  const executionConfig = { ...config };
-  if (executionConfig.abi && !executionConfig.functionName) {
-    try {
-      const abi = executionConfig.abi as Abi;
-      const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
-      if (functionsInAbi.length === 1) {
-        executionConfig.functionName = functionsInAbi[0].name;
-      }
-    } catch (e) {
-      // Ignore ABI parsing errors here; they will be handled by the caller.
-    }
-  }
-  return executionConfig;
-};
-
 const ActionButton: React.FC<{
     buttonKey: string;
     config: ButtonConfig;
@@ -86,6 +65,60 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   const [readError, setReadError] = useState<string | null>(null);
 
   const draggedItemKey = useRef<string | null>(null);
+
+  // Helper to check if an argument is a special $read object
+  const isReadCall = (arg: any): arg is ReadCall => {
+    return typeof arg === 'object' && arg !== null && '$read' in arg;
+  };
+
+  // Helper function to infer functionName if an ABI has only one function.
+  const getExecutionConfig = (config: ButtonConfig): ButtonConfig => {
+    const executionConfig = { ...config };
+    if (executionConfig.abi && !executionConfig.functionName) {
+      try {
+        const abi = executionConfig.abi as Abi;
+        const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
+        if (functionsInAbi.length === 1) {
+          executionConfig.functionName = functionsInAbi[0].name;
+        }
+      } catch (e) {
+        // Ignore ABI parsing errors here; they will be handled by the caller.
+      }
+    }
+    return executionConfig;
+  };
+  
+  // Robustly extracts a single return value from a contract read result.
+  const extractSingleValue = (result: any, funcAbi: AbiFunction): any => {
+    if (!funcAbi.outputs || funcAbi.outputs.length !== 1) {
+      throw new Error(`$read call must point to a function with exactly one output. Found ${funcAbi.outputs?.length ?? 0}.`);
+    }
+    
+    // If result is not an array or object, it's already the primitive value.
+    if (typeof result !== 'object' || result === null) {
+      return result;
+    }
+
+    // If result is an array, viem returns the value as the first element.
+    if (Array.isArray(result)) {
+      return result[0];
+    }
+    
+    // If result is an object, viem returns it with a named property matching the output name.
+    const outputDef = funcAbi.outputs[0];
+    if (outputDef.name && outputDef.name in result) {
+      return (result as Record<string, any>)[outputDef.name];
+    }
+
+    // Fallback for unexpected object structures that don't match the ABI name.
+    const keys = Object.keys(result);
+    if (keys.length === 1) {
+      return result[keys[0]];
+    }
+
+    throw new Error('Failed to extract a single primitive value from read result object.');
+  };
+
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, key: string) => {
     draggedItemKey.current = key;
@@ -188,9 +221,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       if (!execConfig.functionName) {
         throw new Error("Function name could not be determined from ABI.");
       }
-      // FIX: Added authorizationList: undefined to the readContract parameters to resolve a type error
-      // likely caused by a version mismatch between wagmi and viem, where a transaction-related
-      // property was being incorrectly required for a read-only call.
       const data = await readContract(wagmiConfig, {
         address: execConfig.address as `0x${string}`,
         abi: execConfig.abi as Abi,
@@ -210,7 +240,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     } finally {
       setIsReading(false);
     }
-  }, [isConnected, address, wagmiConfig, switchNetworkIfNeeded]);
+  }, [isConnected, address, wagmiConfig, switchNetworkIfNeeded, getExecutionConfig]);
   
   const executeTransaction = useCallback(async (config: ButtonConfig, args: any[] = []): Promise<boolean> => {
     if (!isConnected || !address) {
@@ -262,7 +292,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
           }
       });
     });
-  }, [isConnected, address, showNotification, sendTransaction, switchNetworkIfNeeded]);
+  }, [isConnected, address, showNotification, sendTransaction, switchNetworkIfNeeded, getExecutionConfig]);
   
   const processArgsForReads = useCallback(async (parentConfig: ButtonConfig, args: any[]): Promise<any[] | null> => {
       const processedArgs = [...args];
@@ -275,62 +305,39 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
               const readConfig = arg.$read;
 
               const promise = (async () => {
-                  try {
-                      const nestedArgs = await processArgsForReads(parentConfig, readConfig.args);
-                      if (nestedArgs === null) {
-                          throw new Error(`Failed to resolve arguments for nested read at index ${index}.`);
-                      }
-                      
-                      const targetAddress = readConfig.address || parentConfig.address;
-                      const targetId = parentConfig.id;
-                      
-                      const networkReady = await switchNetworkIfNeeded(targetId, parentConfig);
-                      if (!networkReady) {
-                          throw new Error(`Network switch failed for read call at index ${index}.`);
-                      }
-
-                      const abi = readConfig.abi as Abi;
-                      const execReadConfig = getExecutionConfig({ ...readConfig, address: targetAddress, id: targetId, value: parentConfig.value, color: parentConfig.color });
-                      const functionName = execReadConfig.functionName;
-
-                      if (!functionName) throw new Error("Function name for embedded read could not be determined.");
-                      
-                      const readResult = await readContract(wagmiConfig, {
-                          address: execReadConfig.address as `0x${string}`,
-                          abi: abi,
-                          functionName: functionName,
-                          args: nestedArgs,
-                          chainId: targetId,
-                          authorizationList: undefined,
-                      });
-
-                      const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
-                      if (!functionAbi || !functionAbi.outputs || functionAbi.outputs.length !== 1) {
-                          throw new Error(`$read call must point to a function with exactly one output. Found ${functionAbi?.outputs?.length ?? 0}.`);
-                      }
-                      
-                      let value = readResult;
-                      if (Array.isArray(value)) {
-                          value = value[0];
-                      }
-
-                      const outputDef = functionAbi.outputs[0];
-                      if (typeof value === 'object' && value !== null && outputDef.name && outputDef.name in value) {
-                          value = (value as Record<string, any>)[outputDef.name];
-                      }
-                      
-                      if (typeof value === 'bigint') {
-                          return value.toString();
-                      }
-                      
-                      if (typeof value === 'object' && value !== null) {
-                          throw new Error('Failed to extract a single primitive value from read result.');
-                      }
-
-                      return value;
-                  } catch (e) {
-                      throw e;
+                  const targetAddress = readConfig.address || parentConfig.address;
+                  const targetId = parentConfig.id;
+                  
+                  const nestedArgs = await processArgsForReads(parentConfig, readConfig.args);
+                  if (nestedArgs === null) {
+                      throw new Error(`Failed to resolve arguments for nested read at index ${index}.`);
                   }
+                  
+                  const networkReady = await switchNetworkIfNeeded(targetId, parentConfig);
+                  if (!networkReady) {
+                      throw new Error(`Network switch failed for read call at index ${index}.`);
+                  }
+
+                  const abi = readConfig.abi as Abi;
+                  const execReadConfig = getExecutionConfig({ ...readConfig, address: targetAddress, id: targetId, value: '', color: '' });
+                  const functionName = execReadConfig.functionName;
+
+                  if (!functionName) throw new Error("Function name for embedded read could not be determined.");
+                  
+                  const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
+                  if (!functionAbi) throw new Error(`Function "${functionName}" not found in embedded ABI.`);
+
+                  const readResult = await readContract(wagmiConfig, {
+                      address: execReadConfig.address as `0x${string}`,
+                      abi: abi,
+                      functionName: functionName,
+                      args: nestedArgs,
+                      chainId: targetId,
+                      authorizationList: undefined,
+                  });
+
+                  const value = extractSingleValue(readResult, functionAbi);
+                  return typeof value === 'bigint' ? value.toString() : value;
               })();
               readPromises.push(promise);
           } else if (typeof arg === 'string' && arg === '$userAddress') {
@@ -357,7 +364,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       }
 
       return processedArgs;
-  }, [address, showNotification, switchNetworkIfNeeded, wagmiConfig]);
+  }, [address, showNotification, switchNetworkIfNeeded, wagmiConfig, getExecutionConfig, extractSingleValue]);
 
   const handleTransaction = async (key: string, config: ButtonConfig) => {
     if (!isConnected) {
@@ -378,19 +385,19 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                 (item): item is AbiFunction => item.type === 'function' && item.name === executionConfig.functionName
             );
 
-            if (functionAbi && functionAbi.inputs.length > 0) {
-                const needsUserInput = !executionConfig.args || 
-                                       executionConfig.args.length !== functionAbi.inputs.length ||
-                                       executionConfig.args.some(arg => 
-                                           !isReadCall(arg) && (arg === null || arg === undefined || arg === '')
-                                       );
-
-                if (needsUserInput) {
-                    setCurrentConfigForInput({ key, config });
-                    setIsInputModalOpen(true);
-                    return;
-                }
+            // Check if any arguments require user input. An argument needs input if it's not a special
+            // $read call and its value is missing from the config.
+            const needsUserInput = functionAbi?.inputs.some((_input, index) => {
+                const arg = executionConfig.args?.[index];
+                return !isReadCall(arg) && (arg === null || arg === undefined || arg === '');
+            });
+            
+            if (needsUserInput) {
+                setCurrentConfigForInput({ key, config });
+                setIsInputModalOpen(true);
+                return;
             }
+
         } catch (error: any) {
             showNotification(`ABI Error: ${error.message}`, 'error');
             return;
@@ -412,7 +419,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         const { config } = currentConfigForInput;
         const finalArgs = await processArgsForReads(config, args);
         if (finalArgs === null) {
-            // Error handled in processArgs, just clean up modal state
             setIsInputModalOpen(false);
             setCurrentConfigForInput(null);
             return;
