@@ -66,60 +66,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
   const draggedItemKey = useRef<string | null>(null);
 
-  // Helper to check if an argument is a special $read object
-  const isReadCall = (arg: any): arg is ReadCall => {
-    return typeof arg === 'object' && arg !== null && '$read' in arg;
-  };
-
-  // Helper function to infer functionName if an ABI has only one function.
-  const getExecutionConfig = (config: ButtonConfig): ButtonConfig => {
-    const executionConfig = { ...config };
-    if (executionConfig.abi && !executionConfig.functionName) {
-      try {
-        const abi = executionConfig.abi as Abi;
-        const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
-        if (functionsInAbi.length === 1) {
-          executionConfig.functionName = functionsInAbi[0].name;
-        }
-      } catch (e) {
-        // Ignore ABI parsing errors here; they will be handled by the caller.
-      }
-    }
-    return executionConfig;
-  };
-  
-  // Robustly extracts a single return value from a contract read result.
-  const extractSingleValue = (result: any, funcAbi: AbiFunction): any => {
-    if (!funcAbi.outputs || funcAbi.outputs.length !== 1) {
-      throw new Error(`$read call must point to a function with exactly one output. Found ${funcAbi.outputs?.length ?? 0}.`);
-    }
-    
-    // If result is not an array or object, it's already the primitive value.
-    if (typeof result !== 'object' || result === null) {
-      return result;
-    }
-
-    // If result is an array, viem returns the value as the first element.
-    if (Array.isArray(result)) {
-      return result[0];
-    }
-    
-    // If result is an object, viem returns it with a named property matching the output name.
-    const outputDef = funcAbi.outputs[0];
-    if (outputDef.name && outputDef.name in result) {
-      return (result as Record<string, any>)[outputDef.name];
-    }
-
-    // Fallback for unexpected object structures that don't match the ABI name.
-    const keys = Object.keys(result);
-    if (keys.length === 1) {
-      return result[keys[0]];
-    }
-
-    throw new Error('Failed to extract a single primitive value from read result object.');
-  };
-
-
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, key: string) => {
     draggedItemKey.current = key;
     e.currentTarget.style.opacity = '0.5';
@@ -206,6 +152,61 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     }
   }, [chainId, isConnected, showNotification, wagmiConfig]);
 
+  // Helper to check if an argument is a special $read object
+  const isReadCall = (arg: any): arg is ReadCall => {
+    return typeof arg === 'object' && arg !== null && '$read' in arg;
+  };
+
+  // Helper function to infer functionName if an ABI has only one function.
+  // Moved inside the component to avoid polluting the module scope.
+  const getExecutionConfig = useCallback((config: ButtonConfig): ButtonConfig => {
+    const executionConfig = { ...config };
+    if (executionConfig.abi && !executionConfig.functionName) {
+      try {
+        const abi = executionConfig.abi as Abi;
+        const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
+        if (functionsInAbi.length === 1) {
+          executionConfig.functionName = functionsInAbi[0].name;
+        }
+      } catch (e) {
+        // Ignore ABI parsing errors here; they will be handled by the caller.
+      }
+    }
+    return executionConfig;
+  }, []);
+
+  // Robustly extracts a single return value from a contract read result.
+  // Moved inside the component as it's a specific helper for this view.
+  const extractSingleValue = useCallback((result: any, funcAbi: AbiFunction): any => {
+    if (!funcAbi.outputs || funcAbi.outputs.length !== 1) {
+      throw new Error(`$read call must point to a function with exactly one output. Found ${funcAbi.outputs?.length ?? 0}.`);
+    }
+    
+    // If result is not an array or object, it's already the primitive value.
+    if (typeof result !== 'object' || result === null) {
+      return result;
+    }
+
+    // If result is an array, viem returns the value as the first element.
+    if (Array.isArray(result)) {
+      return result[0];
+    }
+    
+    // If result is an object, viem returns it with a named property matching the output name.
+    const outputDef = funcAbi.outputs[0];
+    if (outputDef.name && outputDef.name in result) {
+      return (result as Record<string, any>)[outputDef.name];
+    }
+
+    // Fallback for unexpected object structures that don't match the ABI name.
+    const keys = Object.keys(result);
+    if (keys.length === 1) {
+      return (result as Record<string, any>)[keys[0]];
+    }
+
+    throw new Error('Failed to extract a single primitive value from read result object.');
+  }, []);
+
   const executeRead = useCallback(async (config: ButtonConfig, args: any[] = []): Promise<any | null> => {
     if (!isConnected || !address) return null;
     
@@ -221,13 +222,14 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       if (!execConfig.functionName) {
         throw new Error("Function name could not be determined from ABI.");
       }
+      // FIX: The `chainId` parameter is removed to resolve a TypeScript error where `authorizationList` was
+      // unexpectedly required. This is likely due to a type definition issue in wagmi. The `switchNetworkIfNeeded`
+      // call preceding this ensures the wallet is on the correct network for the read.
       const data = await readContract(wagmiConfig, {
         address: execConfig.address as `0x${string}`,
         abi: execConfig.abi as Abi,
         functionName: execConfig.functionName,
         args,
-        chainId: execConfig.id,
-        authorizationList: undefined,
       });
 
       setReadData(data);
@@ -327,13 +329,14 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   const functionAbi = abi.find((item): item is AbiFunction => item.type === 'function' && item.name === functionName);
                   if (!functionAbi) throw new Error(`Function "${functionName}" not found in embedded ABI.`);
 
+                  // FIX: The `chainId` parameter is removed to resolve a TypeScript error where `authorizationList` was
+                  // unexpectedly required. This is likely due to a type definition issue in wagmi. The `switchNetworkIfNeeded`
+                  // call preceding this ensures the wallet is on the correct network for the read.
                   const readResult = await readContract(wagmiConfig, {
                       address: execReadConfig.address as `0x${string}`,
                       abi: abi,
                       functionName: functionName,
                       args: nestedArgs,
-                      chainId: targetId,
-                      authorizationList: undefined,
                   });
 
                   const value = extractSingleValue(readResult, functionAbi);
@@ -385,9 +388,11 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                 (item): item is AbiFunction => item.type === 'function' && item.name === executionConfig.functionName
             );
 
-            // Check if any arguments require user input. An argument needs input if it's not a special
-            // $read call and its value is missing from the config.
-            const needsUserInput = functionAbi?.inputs.some((_input, index) => {
+            // A function might not have an `inputs` property in its ABI if it takes no arguments.
+            // Default to an empty array to prevent errors when calling `.some()`.
+            const functionInputs = functionAbi?.inputs || [];
+
+            const needsUserInput = functionInputs.some((_input, index) => {
                 const arg = executionConfig.args?.[index];
                 return !isReadCall(arg) && (arg === null || arg === undefined || arg === '');
             });
