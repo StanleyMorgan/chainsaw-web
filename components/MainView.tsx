@@ -292,40 +292,29 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       authorizationList: undefined,
                   });
                   
-                  let finalResult = readResult;
-                  const functionAbi = abi.find(
-                      (item): item is AbiFunction => item.type === 'function' && item.name === functionName
-                  );
-                  
-                  // If the function has exactly one output, we must robustly unwrap the result
-                  // to get the raw value, as wagmi/viem can return it in various formats.
-                  if (functionAbi && functionAbi.outputs.length === 1) {
-                      const outputDef = functionAbi.outputs[0];
+                  // Recursively find the first primitive value. This is a robust way to handle
+                  // various return types from viem like [123n], { balance: 123n }, or just 123n.
+                  const extractPrimitive = (value: any): any => {
+                    if (typeof value !== 'object' || value === null) {
+                      return value; // It's already a primitive (string, number, bigint, etc.)
+                    }
+                    if (Array.isArray(value)) {
+                      return value.length > 0 ? extractPrimitive(value[0]) : value;
+                    }
+                    const values = Object.values(value);
+                    return values.length > 0 ? extractPrimitive(values[0]) : value;
+                  };
 
-                      if (typeof readResult !== 'object' || readResult === null) {
-                          finalResult = readResult;
-                      } else if (Array.isArray(readResult)) {
-                          finalResult = readResult[0];
-                      } else {
-                          const outputName = outputDef.name;
-                          if (outputName && outputName in readResult) {
-                              finalResult = (readResult as Record<string, any>)[outputName];
-                          } else if ('0' in readResult) {
-                              finalResult = (readResult as Record<string, any>)['0'];
-                          } else {
-                              const values = Object.values(readResult);
-                              if (values.length > 0) {
-                                  finalResult = values[0];
-                              }
-                          }
-                      }
+                  let finalResult = extractPrimitive(readResult);
+
+                  // If the extracted value is a bigint, convert it to a string to prevent downstream errors.
+                  if (typeof finalResult === 'bigint') {
+                    finalResult = finalResult.toString();
                   }
                   
-                  // Final fix: Ensure any bigint is converted to a string before being returned.
-                  // This provides a safe, primitive value for other functions to use, preventing
-                  // the "Cannot convert [object Object] to a BigInt" error.
-                  if (typeof finalResult === 'bigint') {
-                    return finalResult.toString();
+                  // After extraction, if it's still an object, it means the read call returned an empty object/array.
+                  if (typeof finalResult === 'object' && finalResult !== null) {
+                    throw new Error(`Could not extract a primitive value from the read call result. Received: ${JSON.stringify(readResult)}`);
                   }
 
                   return finalResult;
