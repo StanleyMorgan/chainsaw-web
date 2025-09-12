@@ -302,28 +302,17 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                   if (functionAbi && functionAbi.outputs.length === 1) {
                       const outputDef = functionAbi.outputs[0];
 
-                      // Case 1: Result is already a primitive (like BigInt), use it directly.
                       if (typeof readResult !== 'object' || readResult === null) {
                           finalResult = readResult;
-                      }
-                      // Case 2: Result is an array, take the first element.
-                      else if (Array.isArray(readResult)) {
+                      } else if (Array.isArray(readResult)) {
                           finalResult = readResult[0];
-                      }
-                      // Case 3: Result is an object. This is the most complex case.
-                      else {
+                      } else {
                           const outputName = outputDef.name;
-                          // Prioritize accessing by the explicit name from the ABI.
                           if (outputName && outputName in readResult) {
                               finalResult = (readResult as Record<string, any>)[outputName];
-                          } 
-                          // Fallback for unnamed outputs or array-like objects returned as objects.
-                          else if ('0' in readResult) {
+                          } else if ('0' in readResult) {
                               finalResult = (readResult as Record<string, any>)['0'];
-                          }
-                          // Last resort: if it's an object but doesn't match above, get the first value.
-                          // This can be brittle but is better than passing the whole object.
-                          else {
+                          } else {
                               const values = Object.values(readResult);
                               if (values.length > 0) {
                                   finalResult = values[0];
@@ -332,6 +321,13 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                       }
                   }
                   
+                  // Final fix: Ensure any bigint is converted to a string before being returned.
+                  // This provides a safe, primitive value for other functions to use, preventing
+                  // the "Cannot convert [object Object] to a BigInt" error.
+                  if (typeof finalResult === 'bigint') {
+                    return finalResult.toString();
+                  }
+
                   return finalResult;
               })();
               readPromises.push(promise);
