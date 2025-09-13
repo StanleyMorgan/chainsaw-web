@@ -23,8 +23,8 @@ export interface ButtonConfig {
   // Optional: for ABI-based transactions
   abi?: Abi | readonly unknown[];
   functionName?: string;
-  // Arguments can now contain strings, numbers, or embedded read call objects.
-  args?: (string | number | ReadCall)[];
+  // Arguments can be simple values or complex nested objects.
+  args?: any[];
   readOnly?: boolean;
 
   // For chained actions

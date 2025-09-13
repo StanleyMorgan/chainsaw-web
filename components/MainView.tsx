@@ -211,7 +211,7 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   }, []);
 
   const processArgsForReads = useCallback(async (
-    args: (string | number | ReadCall)[] | undefined,
+    args: any[] | undefined,
     parentConfig: ButtonConfig
   ): Promise<any[] | null> => {
     if (!args) return [];
@@ -219,6 +219,27 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       showNotification('Wallet not connected.', 'error');
       return null;
     }
+
+    // Recursive function to replace '$userAddress' in nested structures.
+    const deepReplaceUserAddress = (data: any): any => {
+      if (typeof data === 'string') {
+        return data === '$userAddress' ? address : data;
+      }
+      if (Array.isArray(data)) {
+        return data.map(item => deepReplaceUserAddress(item));
+      }
+      // Ensure we don't recurse into `$read` objects, as they're handled separately.
+      if (typeof data === 'object' && data !== null && !isReadCall(data)) {
+        const newData: { [key: string]: any } = {};
+        for (const key in data) {
+          if (Object.prototype.hasOwnProperty.call(data, key)) {
+            newData[key] = deepReplaceUserAddress(data[key]);
+          }
+        }
+        return newData;
+      }
+      return data;
+    };
 
     const processedArgs = [];
     for (const arg of args) {
@@ -279,10 +300,8 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
           console.error(error);
           return null;
         }
-      } else if (arg === '$userAddress') {
-        processedArgs.push(address);
       } else {
-        processedArgs.push(arg);
+        processedArgs.push(deepReplaceUserAddress(arg));
       }
     }
     return processedArgs;
