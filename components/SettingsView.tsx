@@ -13,12 +13,25 @@ interface SettingsViewProps {
   settings: Settings;
   setSettings: (settings: Settings) => void;
   visibleButtons: VisibleButtons;
-  setVisibleButtons: (visible: VisibleButtons) => void;
   showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
+  activeProfile: string;
+  setActiveProfile: (profile: string) => void;
+  profileNames: string[];
+  onSaveProfile: (profileName: string, newVisibility: VisibleButtons) => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ 
+  settings, 
+  setSettings, 
+  visibleButtons, 
+  showNotification,
+  activeProfile,
+  setActiveProfile,
+  profileNames,
+  onSaveProfile
+}) => {
   const [jsonText, setJsonText] = useState('');
+  const [draftVisibility, setDraftVisibility] = useState<VisibleButtons>({});
   const presets: Preset[] = presetsData;
   const [isPresetsLoading, setIsPresetsLoading] = useState(false);
   const [isPresetDropdownOpen, setPresetDropdownOpen] = useState(false);
@@ -28,6 +41,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
   useEffect(() => {
     setJsonText(JSON.stringify(settings, null, 2));
   }, [settings]);
+
+  useEffect(() => {
+    // Sync draft visibility when the active profile changes or initial data loads
+    setDraftVisibility(visibleButtons);
+  }, [visibleButtons, activeProfile]);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
@@ -60,7 +78,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
 
       if (mode === 'replace') {
         setJsonText(JSON.stringify(presetSettings, null, 2));
-        showNotification('Preset loaded. Click "Save" to apply.', 'info');
+        showNotification('Preset loaded. Click "Save Configuration" to apply.', 'info');
       } else { // Merge logic
         let currentSettings: Settings = {};
         try {
@@ -84,7 +102,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
 
         setJsonText(JSON.stringify(newSettings, null, 2));
         if (mergedCount > 0) {
-            showNotification(`${mergedCount} new button(s) merged. Click "Save" to apply.`, 'success');
+            showNotification(`${mergedCount} new button(s) merged. Click "Save Configuration" to apply.`, 'success');
         } else {
             showNotification('No new buttons to merge. Your configuration is up to date.', 'info');
         }
@@ -98,22 +116,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
     }
   };
 
-
-  const handleSave = () => {
+  const handleSaveConfiguration = () => {
     try {
       const newSettings = JSON.parse(jsonText);
       if (typeof newSettings !== 'object' || newSettings === null || Array.isArray(newSettings)) {
         throw new Error("Invalid JSON format. Must be an object.");
       }
       setSettings(newSettings);
-      
-      const newVisibility: VisibleButtons = {};
-      Object.keys(newSettings).forEach(key => {
-        newVisibility[key] = visibleButtons[key] !== false;
-      });
-      setVisibleButtons(newVisibility);
-
-      showNotification('Settings saved successfully!', 'success');
+      showNotification('Settings saved successfully! New visibility defaults applied.', 'success');
     } catch (error: any) {
       console.error(error);
       showNotification(`Invalid JSON: ${error.message}`, 'error');
@@ -121,23 +131,56 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
   };
   
   const handleVisibilityChange = (key: string, isVisible: boolean) => {
-    setVisibleButtons({
-      ...visibleButtons,
+    setDraftVisibility(prev => ({
+      ...prev,
       [key]: isVisible,
-    });
+    }));
+  };
+
+  const handleSaveProfileClick = () => {
+    onSaveProfile(activeProfile, draftVisibility);
   };
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <div>
-        <h2 className="text-2xl font-bold mb-4">Button Visibility</h2>
+        <h2 className="text-2xl font-bold mb-4">Profile Settings</h2>
+        <div className="bg-gray-800 p-6 rounded-lg flex flex-col sm:flex-row items-center gap-4">
+          <div className="w-full sm:w-1/2">
+            <label htmlFor="profile-select-settings" className="block text-sm font-medium text-gray-300 mb-2">
+              Editing Profile
+            </label>
+            <select
+              id="profile-select-settings"
+              value={activeProfile}
+              onChange={(e) => setActiveProfile(e.target.value)}
+              className="w-full p-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            >
+              {profileNames.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-full sm:w-1/2 flex items-end">
+            <button
+              onClick={handleSaveProfileClick}
+              className="w-full bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold"
+            >
+              Save Profile
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div>
+        <h2 className="text-2xl font-bold mb-4">Button Visibility for "{activeProfile}"</h2>
         <div className="bg-gray-800 p-6 rounded-lg grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {Object.keys(settings).length > 0 ? (
             Object.keys(settings).map((key) => (
             <label key={key} className="flex items-center space-x-3 cursor-pointer p-2 rounded-md hover:bg-gray-700">
               <input
                 type="checkbox"
-                checked={visibleButtons[key] ?? true}
+                checked={draftVisibility[key] ?? true}
                 onChange={(e) => handleVisibilityChange(key, e.target.checked)}
                 className="h-5 w-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 cursor-pointer"
               />
@@ -184,7 +227,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
                 )}
             </div>
             <button
-              onClick={handleSave}
+              onClick={handleSaveConfiguration}
               className="w-full sm:flex-1 bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold text-lg order-first sm:order-last"
             >
               Save Configuration

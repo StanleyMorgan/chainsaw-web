@@ -18,9 +18,35 @@ interface MainViewProps {
   setVisibleButtons: (visibleButtons: VisibleButtons) => void;
   buttonOrder: string[];
   onReorder: (draggedKey: string, dropKey:string) => void;
-  // FIX: Updated the `showNotification` prop type to accept an optional `duration` argument, matching its definition in App.tsx and resolving a type error.
   showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
+  activeProfile: string;
+  setActiveProfile: (profile: string) => void;
+  profileNames: string[];
 }
+
+const ProfileSelector: React.FC<{
+  activeProfile: string;
+  setActiveProfile: (profile: string) => void;
+  profileNames: string[];
+}> = ({ activeProfile, setActiveProfile, profileNames }) => {
+  return (
+    <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+      <label htmlFor="profile-select-main" className="block text-sm font-medium text-gray-300 mb-2">
+        Active Profile
+      </label>
+      <select
+        id="profile-select-main"
+        value={activeProfile}
+        onChange={(e) => setActiveProfile(e.target.value)}
+        className="w-full p-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+      >
+        {profileNames.map(name => (
+          <option key={name} value={name}>{name}</option>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 const ActionButton: React.FC<{
     buttonKey: string;
@@ -50,7 +76,7 @@ const formatReadData = (data: any): string => {
 };
 
 
-export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, buttonOrder, onReorder, showNotification }) => {
+export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visibleButtons, buttonOrder, onReorder, showNotification, activeProfile, setActiveProfile, profileNames }) => {
   const { address, chainId, isConnected } = useAccount();
   const { sendTransaction } = useSendTransaction();
   const wagmiConfig = useConfig();
@@ -89,7 +115,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
   const handleSaveButton = (key: string, config: ButtonConfig) => {
     const newSettings = { ...settings, [key]: config };
     setSettings(newSettings);
-    setVisibleButtons({ ...visibleButtons, [key]: true });
     showNotification(`Button "${key}" saved successfully!`, 'success');
   };
   
@@ -104,8 +129,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
             showNotification('Wallet client not available.', 'error');
             return false;
         }
-        // Use the viem client's switchChain directly to bypass wagmi's configured chains check.
-        // This restores the ability to switch to any chain the user's wallet supports.
         await client.switchChain({ id: targetChainId });
         return true;
     } catch (switchError: any) {
@@ -155,13 +178,10 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     }
   }, [chainId, isConnected, address, showNotification, wagmiConfig]);
 
-  // Helper to check if an argument is a special $read object
   const isReadCall = (arg: any): arg is ReadCall => {
     return typeof arg === 'object' && arg !== null && '$read' in arg;
   };
 
-  // Helper function to infer functionName if an ABI has only one function.
-  // Moved inside the component to avoid polluting the module scope.
   const getExecutionConfig = useCallback((config: ButtonConfig): ButtonConfig => {
     const executionConfig = { ...config };
     if (executionConfig.abi && !executionConfig.functionName) {
@@ -178,30 +198,24 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     return executionConfig;
   }, []);
 
-  // Robustly extracts a single return value from a contract read result.
-  // Moved inside the component as it's a specific helper for this view.
   const extractSingleValue = useCallback((result: any, funcAbi: AbiFunction): any => {
     if (!funcAbi.outputs || funcAbi.outputs.length !== 1) {
       throw new Error(`$read call must point to a function with exactly one output. Found ${funcAbi.outputs?.length ?? 0}.`);
     }
     
-    // If result is not an array or object, it's already the primitive value.
     if (typeof result !== 'object' || result === null) {
       return result;
     }
 
-    // If result is an array, viem returns the value as the first element.
     if (Array.isArray(result)) {
       return result[0];
     }
     
-    // If result is an object, viem returns it with a named property matching the output name.
     const outputDef = funcAbi.outputs[0];
     if (outputDef.name && outputDef.name in result) {
       return (result as Record<string, any>)[outputDef.name];
     }
 
-    // Fallback for unexpected object structures that don't match the ABI name.
     const keys = Object.keys(result);
     if (keys.length === 1) {
       return (result as Record<string, any>)[keys[0]];
@@ -220,7 +234,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       return null;
     }
 
-    // Recursive function to replace '$userAddress' in nested structures.
     const deepReplaceUserAddress = (data: any): any => {
       if (typeof data === 'string') {
         return data === '$userAddress' ? address : data;
@@ -228,7 +241,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       if (Array.isArray(data)) {
         return data.map(item => deepReplaceUserAddress(item));
       }
-      // Ensure we don't recurse into `$read` objects, as they're handled separately.
       if (typeof data === 'object' && data !== null && !isReadCall(data)) {
         const newData: { [key: string]: any } = {};
         for (const key in data) {
@@ -246,14 +258,12 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       if (isReadCall(arg)) {
         const readCallConfig = getExecutionConfig({
           ...arg.$read,
-          id: parentConfig.id, // Inherit parent chainId for the read call
-          address: arg.$read.address || parentConfig.address, // Inherit parent address if not specified
-          color: parentConfig.color, // Dummy value to satisfy type
-          value: parentConfig.value, // Dummy value to satisfy type
+          id: parentConfig.id,
+          address: arg.$read.address || parentConfig.address,
+          color: parentConfig.color,
+          value: parentConfig.value,
         });
         
-        // FIX: Add a guard to ensure functionName is defined before it's used.
-        // This resolves a TypeScript error where `undefined` could be passed to `readContract`.
         if (!readCallConfig.functionName) {
             showNotification(`Function name could not be determined from ABI for $read call.`, 'error');
             return null;
@@ -276,11 +286,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         if (!networkReady) return null;
 
         try {
-          // FIX: Set `account: undefined` to resolve a wagmi v2 type error where `readContract`
-          // incorrectly requires transaction-related properties. This helps TypeScript
-          // infer the correct overload for a read-only call.
-          // FIX: Added `authorizationList: undefined` to address a wagmi v2 type error
-          // where `readContract` incorrectly requires a transaction-related property.
           const readResult = await readContract(wagmiConfig, {
             address: readCallConfig.address as `0x${string}`,
             abi: readCallConfig.abi as Abi,
@@ -321,14 +326,9 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
       
       const processedArgs = await processArgsForReads(args, execConfig);
       if (processedArgs === null) {
-        return null; // Error during arg processing, notification was already shown
+        return null;
       }
 
-      // FIX: Set `account: undefined` to resolve a wagmi v2 type error where `readContract`
-      // incorrectly requires transaction-related properties. This helps TypeScript
-      // infer the correct overload for a read-only call.
-      // FIX: Added `authorizationList: undefined` to address a wagmi v2 type error
-      // where `readContract` incorrectly requires a transaction-related property.
       const data = await readContract(wagmiConfig, {
         address: execConfig.address as `0x${string}`,
         abi: execConfig.abi as Abi,
@@ -357,10 +357,9 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
 
     try {
         let finalArgs: any[] | null = [];
-        // Only process args if there's an ABI. For raw data transactions, args are not used.
         if (execConfig.abi) {
             finalArgs = await processArgsForReads(args || execConfig.args, execConfig);
-            if (finalArgs === null) return; // Error occurred during arg processing
+            if (finalArgs === null) return;
         }
 
         let txData: `0x${string}` | undefined;
@@ -377,7 +376,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
         }
 
         if (!txData) {
-            // FIX: Check if there are inputs. If not, don't show an error, as it's a valid call.
             const func = (execConfig.abi as Abi)?.find(
                 (item): item is AbiFunction => item.type === 'function' && item.name === execConfig.functionName
             );
@@ -416,8 +414,6 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
     }
     
     if (config.type === 'chained' && config.steps) {
-        // Chained transaction logic would go here.
-        // For now, we just show a message.
         showNotification("Chained actions are not yet implemented.", "info");
         return;
     }
@@ -435,12 +431,10 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
           (item): item is AbiFunction => item.type === 'function' && item.name === execConfig.functionName
         );
 
-        // Check if any defined arguments (excluding special values) are empty
         if (func?.inputs && func.inputs.length > 0) {
             hasEmptyArgs = func.inputs.some((input, index) => {
                 const arg = execConfig.args?.[index];
                 if (input.type === 'tuple') {
-                    // For tuples, we'd need a more complex check, but for now we assume they might need input
                     return true;
                 }
                 return arg === undefined || arg === null || arg === '';
@@ -490,6 +484,12 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                             <p className="text-gray-300 whitespace-pre-wrap">{hoveredDescription}</p>
                         </div>
                     </div>
+                    {/* Profile Selector */}
+                    <ProfileSelector 
+                        activeProfile={activeProfile}
+                        setActiveProfile={setActiveProfile}
+                        profileNames={profileNames}
+                    />
                     {/* Add Button */}
                     <button
                         onClick={() => setIsAddModalOpen(true)}

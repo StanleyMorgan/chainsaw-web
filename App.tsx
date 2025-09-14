@@ -4,7 +4,7 @@ import { Header } from './components/Header';
 import { MainView } from './components/MainView';
 import { SettingsView } from './components/SettingsView';
 import { Notification, NotificationData } from './components/Notification';
-import type { Settings, VisibleButtons } from './types';
+import type { Settings, VisibleButtons, ProfileVisibility } from './types';
 
 import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
@@ -66,13 +66,18 @@ const config = getDefaultConfig({
 
 const queryClient = new QueryClient();
 
+const PROFILE_NAMES = ['Profile 1', 'Profile 2', 'Profile 3', 'Profile 4'];
+
 const AppContent: React.FC = () => {
   const { isConnected } = useAccount();
   const [view, setView] = useState<'main' | 'settings'>('main');
   const [settings, setSettings] = useState<Settings>({});
-  const [visibleButtons, setVisibleButtons] = useState<VisibleButtons>({});
   const [notification, setNotification] = useState<NotificationData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Profile state management
+  const [activeProfile, setActiveProfile] = useState<string>(PROFILE_NAMES[0]);
+  const [profileVisibility, setProfileVisibility] = useState<ProfileVisibility>({});
 
   const showNotification = useCallback((message: string, type: NotificationData['type'], duration: number = 5000) => {
     setNotification({ message, type });
@@ -88,16 +93,29 @@ const AppContent: React.FC = () => {
 
   const handleSettingsChange = useCallback((newSettings: Settings) => {
     setSettings(newSettings);
-    // Use functional update to avoid dependency on visibleButtons, preventing re-creation of this callback.
-    setVisibleButtons(currentVisibility => {
-      const newVisibility: VisibleButtons = {};
-      Object.keys(newSettings).forEach(key => {
-        // Keep existing visibility if available, otherwise default to true
-        newVisibility[key] = currentVisibility[key] !== false;
-      });
-      return newVisibility;
+    // When settings change (e.g., new button added), update visibility for all profiles.
+    setProfileVisibility(currentProfiles => {
+      const newProfiles: ProfileVisibility = {};
+      for (const profileName of PROFILE_NAMES) {
+        const existingProfile = currentProfiles[profileName] || {};
+        const newVisibility: VisibleButtons = {};
+        Object.keys(newSettings).forEach(key => {
+          newVisibility[key] = existingProfile[key] !== false;
+        });
+        newProfiles[profileName] = newVisibility;
+      }
+      return newProfiles;
     });
   }, []);
+
+  const handleSaveProfile = useCallback((profileName: string, newVisibility: VisibleButtons) => {
+    setProfileVisibility(prev => ({
+      ...prev,
+      [profileName]: newVisibility
+    }));
+    showNotification(`Profile "${profileName}" saved successfully!`, 'success');
+  }, [showNotification]);
+
 
   const handleReorder = (draggedKey: string, dropKey: string) => {
     const keys = Object.keys(settings);
@@ -117,83 +135,86 @@ const AppContent: React.FC = () => {
   };
 
   const fetchAndSetDefaultSettings = useCallback(async (isInitialLoad = false) => {
-    // This function is now only used for the initial load.
-    // Resetting is handled by the preset loader in SettingsView.
-    if (!isInitialLoad) {
-        // This part of the logic is now handled in SettingsView.
-        // Kept the function signature for simplicity of the initial call.
-        return;
-    }
+    if (!isInitialLoad) return;
     
     setIsLoading(true);
     try {
       const response = await fetch('https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/default.json');
       if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
       const defaultSettings = await response.json();
-      
       handleSettingsChange(defaultSettings);
-      
     } catch (error) {
       console.error("Failed to fetch or apply default settings:", error);
       showNotification('Failed to fetch default settings. Please check your internet connection.', 'error');
     } finally {
-        setIsLoading(false); // Ensure loading is always set to false
+        setIsLoading(false);
     }
   }, [showNotification, handleSettingsChange]);
 
-
   useEffect(() => {
-    const loadSettings = async () => {
+    const loadState = async () => {
         setIsLoading(true);
         try {
             const savedSettings = localStorage.getItem('chainsawSettings');
-            if (savedSettings && savedSettings !== '{}') {
-                const loadedSettings = JSON.parse(savedSettings);
-                
-                const savedVisibility = localStorage.getItem('chainsawVisibility');
-                const loadedVisibility = savedVisibility ? JSON.parse(savedVisibility) : {};
-                
-                // Set visibleButtons state before calling handleSettingsChange
-                // so it has the correct context.
-                const initialVisibility: VisibleButtons = {};
-                Object.keys(loadedSettings).forEach(key => {
-                    initialVisibility[key] = loadedVisibility[key] !== false;
-                });
-                setVisibleButtons(initialVisibility);
-                setSettings(loadedSettings);
+            let loadedSettings: Settings = {};
 
+            if (savedSettings && savedSettings !== '{}') {
+                loadedSettings = JSON.parse(savedSettings);
+                setSettings(loadedSettings);
             } else {
-                await fetchAndSetDefaultSettings(true);
+                // Fetch default settings and wait for it to complete
+                const response = await fetch('https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/default.json');
+                if (!response.ok) throw new Error('Failed to fetch default settings');
+                loadedSettings = await response.json();
+                setSettings(loadedSettings);
+            }
+
+            const savedActiveProfile = localStorage.getItem('chainsawActiveProfile');
+            setActiveProfile(savedActiveProfile || PROFILE_NAMES[0]);
+
+            const savedProfileVisibility = localStorage.getItem('chainsawProfileVisibility');
+            if (savedProfileVisibility) {
+                setProfileVisibility(JSON.parse(savedProfileVisibility));
+            } else {
+                // Initialize profiles if they don't exist
+                const initialProfiles: ProfileVisibility = {};
+                for (const name of PROFILE_NAMES) {
+                    const visibility: VisibleButtons = {};
+                    Object.keys(loadedSettings).forEach(key => {
+                        visibility[key] = true; // Default all to visible
+                    });
+                    initialProfiles[name] = visibility;
+                }
+                setProfileVisibility(initialProfiles);
             }
         } catch (error) {
-            console.error("Failed to load settings from localStorage, fetching default.", error);
+            console.error("Failed to load settings, fetching default.", error);
             await fetchAndSetDefaultSettings(true);
         } finally {
             setIsLoading(false);
         }
     };
-    loadSettings();
-  }, [fetchAndSetDefaultSettings]);
+    loadState();
+  }, []); // Only run on initial mount
 
   useEffect(() => {
     if (!isLoading && Object.keys(settings).length > 0) {
-        try {
-            localStorage.setItem('chainsawSettings', JSON.stringify(settings));
-        } catch (error) {
-            console.error("Failed to save settings to localStorage", error);
-        }
+      localStorage.setItem('chainsawSettings', JSON.stringify(settings));
     }
   }, [settings, isLoading]);
 
   useEffect(() => {
     if (!isLoading) {
-        try {
-            localStorage.setItem('chainsawVisibility', JSON.stringify(visibleButtons));
-        } catch (error) {
-            console.error("Failed to save visibility to localStorage", error);
-        }
+      localStorage.setItem('chainsawActiveProfile', activeProfile);
     }
-  }, [visibleButtons, isLoading]);
+  }, [activeProfile, isLoading]);
+
+  useEffect(() => {
+    if (!isLoading && Object.keys(profileVisibility).length > 0) {
+      localStorage.setItem('chainsawProfileVisibility', JSON.stringify(profileVisibility));
+    }
+  }, [profileVisibility, isLoading]);
+
 
   if (isLoading) {
     return (
@@ -202,6 +223,8 @@ const AppContent: React.FC = () => {
       </div>
     );
   }
+
+  const currentVisibleButtons = profileVisibility[activeProfile] || {};
 
   return (
     <div className="bg-gray-900 text-white min-h-screen font-sans">
@@ -214,20 +237,26 @@ const AppContent: React.FC = () => {
           <MainView 
             settings={settings}
             setSettings={handleSettingsChange}
-            visibleButtons={visibleButtons}
-            setVisibleButtons={setVisibleButtons}
+            visibleButtons={currentVisibleButtons}
+            setVisibleButtons={() => {}} // Visibility is now managed by profiles
             buttonOrder={Object.keys(settings)}
             onReorder={handleReorder}
             showNotification={showNotification}
+            activeProfile={activeProfile}
+            setActiveProfile={setActiveProfile}
+            profileNames={PROFILE_NAMES}
           />
         )}
         {view === 'settings' && isConnected && (
           <SettingsView
             settings={settings}
             setSettings={handleSettingsChange}
-            visibleButtons={visibleButtons}
-            setVisibleButtons={setVisibleButtons}
+            visibleButtons={currentVisibleButtons}
             showNotification={showNotification}
+            activeProfile={activeProfile}
+            setActiveProfile={setActiveProfile}
+            profileNames={PROFILE_NAMES}
+            onSaveProfile={handleSaveProfile}
           />
         )}
       </main>

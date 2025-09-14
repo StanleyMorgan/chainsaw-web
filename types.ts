@@ -49,3 +49,7 @@ export interface Settings {
 export interface VisibleButtons {
   [key: string]: boolean;
 }
+
+export interface ProfileVisibility {
+  [profileName: string]: VisibleButtons;
+}
