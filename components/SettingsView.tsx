@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Settings, VisibleButtons } from '../types';
 import type { NotificationData } from './Notification';
+import profilesData from '../profiles.json';
 
 interface Profile {
   name: string;
@@ -19,7 +20,7 @@ interface SettingsViewProps {
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification }) => {
   const [jsonText, setJsonText] = useState('');
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>(profilesData);
   const [isProfilesLoading, setIsProfilesLoading] = useState(false);
   const [isProfileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -27,21 +28,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
   useEffect(() => {
     setJsonText(JSON.stringify(settings, null, 2));
   }, [settings]);
-
-  useEffect(() => {
-    const fetchProfiles = async () => {
-      try {
-        const response = await fetch('/profiles.json');
-        if (!response.ok) throw new Error('Failed to load profiles list.');
-        const data = await response.json();
-        setProfiles(data);
-      } catch (error) {
-        console.error(error);
-        showNotification('Could not load configuration profiles.', 'error');
-      }
-    };
-    fetchProfiles();
-  }, [showNotification]);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
