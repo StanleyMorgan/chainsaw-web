@@ -23,6 +23,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
   const profiles: Profile[] = profilesData;
   const [isProfilesLoading, setIsProfilesLoading] = useState(false);
   const [isProfileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [pendingProfileUrl, setPendingProfileUrl] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,25 +46,59 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
     };
   }, [isProfileDropdownOpen]);
 
-  const handleLoadProfile = async (url: string) => {
+  const handleLoadProfileClick = (url: string) => {
     setProfileDropdownOpen(false);
-    if (!window.confirm("Are you sure you want to load a new profile? This will overwrite any unsaved changes in the editor.")) {
-      return;
-    }
+    setPendingProfileUrl(url);
+  };
+  
+  const executeLoadProfile = async (url: string, mode: 'replace' | 'merge') => {
+    setPendingProfileUrl(null);
     setIsProfilesLoading(true);
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
       const profileSettings = await response.json();
-      setJsonText(JSON.stringify(profileSettings, null, 2));
-      showNotification('Profile loaded into editor. Click "Save" to apply.', 'info');
+
+      if (mode === 'replace') {
+        setJsonText(JSON.stringify(profileSettings, null, 2));
+        showNotification('Profile loaded. Click "Save" to apply.', 'info');
+      } else { // Merge logic
+        let currentSettings: Settings = {};
+        try {
+          currentSettings = JSON.parse(jsonText);
+          if (typeof currentSettings !== 'object' || currentSettings === null || Array.isArray(currentSettings)) {
+            throw new Error("Current configuration is not a valid JSON object.");
+          }
+        } catch (e) {
+          showNotification('Cannot merge: Current configuration is not valid JSON.', 'error');
+          return;
+        }
+
+        const newSettings = { ...currentSettings };
+        let mergedCount = 0;
+        Object.keys(profileSettings).forEach(key => {
+          if (!newSettings.hasOwnProperty(key)) {
+            newSettings[key] = profileSettings[key];
+            mergedCount++;
+          }
+        });
+
+        setJsonText(JSON.stringify(newSettings, null, 2));
+        if (mergedCount > 0) {
+            showNotification(`${mergedCount} new button(s) merged. Click "Save" to apply.`, 'success');
+        } else {
+            showNotification('No new buttons to merge. Your configuration is up to date.', 'info');
+        }
+      }
+
     } catch (error) {
-      console.error("Failed to fetch profile:", error);
-      showNotification('Failed to fetch the selected profile.', 'error');
+      console.error("Failed to fetch or process profile:", error);
+      showNotification('Failed to process the selected profile.', 'error');
     } finally {
       setIsProfilesLoading(false);
     }
   };
+
 
   const handleSave = () => {
     try {
@@ -138,7 +173,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
                         {profiles.length > 0 ? profiles.map(profile => (
                             <button
                                 key={profile.name}
-                                onClick={() => handleLoadProfile(profile.url)}
+                                onClick={() => handleLoadProfileClick(profile.url)}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
                             >
                                 {profile.name}
@@ -158,6 +193,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
           </div>
         </div>
       </div>
+      
+      {pendingProfileUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 space-y-4 border border-gray-700">
+            <h2 className="text-xl font-bold text-white">Load Profile</h2>
+            <p className="text-gray-300">How would you like to load this profile?</p>
+            <div className="space-y-3 text-left">
+                <div className="p-3 bg-gray-900 rounded-md border border-gray-700">
+                    <p className="text-md font-semibold text-blue-400">Replace</p>
+                    <p className="text-sm text-gray-400 mt-1">Overwrite your current configuration in the editor.</p>
+                </div>
+                <div className="p-3 bg-gray-900 rounded-md border border-gray-700">
+                    <p className="text-md font-semibold text-indigo-400">Merge</p>
+                    <p className="text-sm text-gray-400 mt-1">Add new buttons from the profile without overwriting your existing ones.</p>
+                </div>
+            </div>
+            <div className="flex justify-end gap-4 pt-2">
+              <button
+                onClick={() => setPendingProfileUrl(null)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                disabled={isProfilesLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeLoadProfile(pendingProfileUrl, 'merge')}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                disabled={isProfilesLoading}
+              >
+                Merge
+              </button>
+              <button
+                onClick={() => executeLoadProfile(pendingProfileUrl, 'replace')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                disabled={isProfilesLoading}
+              >
+                Replace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
