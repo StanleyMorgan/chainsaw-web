@@ -20,7 +20,7 @@ interface SettingsViewProps {
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification }) => {
   const [jsonText, setJsonText] = useState('');
-  const [profiles, setProfiles] = useState<Profile[]>(profilesData);
+  const profiles: Profile[] = profilesData;
   const [isProfilesLoading, setIsProfilesLoading] = useState(false);
   const [isProfileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
