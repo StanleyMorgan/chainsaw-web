@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Settings, VisibleButtons } from '../types';
 import type { NotificationData } from './Notification';
-import profilesData from '../profiles.json';
+import presetsData from '../presets.json';
 
-interface Profile {
+interface Preset {
   name: string;
   url: string;
 }
@@ -14,16 +14,15 @@ interface SettingsViewProps {
   setSettings: (settings: Settings) => void;
   visibleButtons: VisibleButtons;
   setVisibleButtons: (visible: VisibleButtons) => void;
-  // FIX: Updated the `showNotification` prop type to accept an optional `duration` argument for consistency with its definition in App.tsx.
   showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification }) => {
   const [jsonText, setJsonText] = useState('');
-  const profiles: Profile[] = profilesData;
-  const [isProfilesLoading, setIsProfilesLoading] = useState(false);
-  const [isProfileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [pendingProfileUrl, setPendingProfileUrl] = useState<string | null>(null);
+  const presets: Preset[] = presetsData;
+  const [isPresetsLoading, setIsPresetsLoading] = useState(false);
+  const [isPresetDropdownOpen, setPresetDropdownOpen] = useState(false);
+  const [pendingPresetUrl, setPendingPresetUrl] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,10 +32,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
         if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-            setProfileDropdownOpen(false);
+            setPresetDropdownOpen(false);
         }
     };
-    if (isProfileDropdownOpen) {
+    if (isPresetDropdownOpen) {
         document.addEventListener('mousedown', handleOutsideClick);
         document.addEventListener('touchstart', handleOutsideClick);
     }
@@ -44,24 +43,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
         document.removeEventListener('mousedown', handleOutsideClick);
         document.removeEventListener('touchstart', handleOutsideClick);
     };
-  }, [isProfileDropdownOpen]);
+  }, [isPresetDropdownOpen]);
 
-  const handleLoadProfileClick = (url: string) => {
-    setProfileDropdownOpen(false);
-    setPendingProfileUrl(url);
+  const handleLoadPresetClick = (url: string) => {
+    setPresetDropdownOpen(false);
+    setPendingPresetUrl(url);
   };
   
-  const executeLoadProfile = async (url: string, mode: 'replace' | 'merge') => {
-    setPendingProfileUrl(null);
-    setIsProfilesLoading(true);
+  const executeLoadPreset = async (url: string, mode: 'replace' | 'merge') => {
+    setPendingPresetUrl(null);
+    setIsPresetsLoading(true);
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
-      const profileSettings = await response.json();
+      const presetSettings = await response.json();
 
       if (mode === 'replace') {
-        setJsonText(JSON.stringify(profileSettings, null, 2));
-        showNotification('Profile loaded. Click "Save" to apply.', 'info');
+        setJsonText(JSON.stringify(presetSettings, null, 2));
+        showNotification('Preset loaded. Click "Save" to apply.', 'info');
       } else { // Merge logic
         let currentSettings: Settings = {};
         try {
@@ -76,9 +75,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
 
         const newSettings = { ...currentSettings };
         let mergedCount = 0;
-        Object.keys(profileSettings).forEach(key => {
+        Object.keys(presetSettings).forEach(key => {
           if (!newSettings.hasOwnProperty(key)) {
-            newSettings[key] = profileSettings[key];
+            newSettings[key] = presetSettings[key];
             mergedCount++;
           }
         });
@@ -92,10 +91,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
       }
 
     } catch (error) {
-      console.error("Failed to fetch or process profile:", error);
-      showNotification('Failed to process the selected profile.', 'error');
+      console.error("Failed to fetch or process preset:", error);
+      showNotification('Failed to process the selected preset.', 'error');
     } finally {
-      setIsProfilesLoading(false);
+      setIsPresetsLoading(false);
     }
   };
 
@@ -162,24 +161,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
           <div className="mt-4 flex flex-col sm:flex-row gap-4">
             <div className="relative" ref={dropdownRef}>
                 <button
-                    onClick={() => setProfileDropdownOpen(prev => !prev)}
-                    disabled={isProfilesLoading}
+                    onClick={() => setPresetDropdownOpen(prev => !prev)}
+                    disabled={isPresetsLoading}
                     className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700 transition-colors duration-200 font-semibold flex items-center justify-center disabled:opacity-50 disabled:cursor-wait"
                 >
-                  {isProfilesLoading ? 'Loading...' : 'Load Profile'}
+                  {isPresetsLoading ? 'Loading...' : 'Load Preset'}
                 </button>
-                {isProfileDropdownOpen && (
+                {isPresetDropdownOpen && (
                     <div className="absolute bottom-full left-0 mb-2 w-full sm:w-48 bg-gray-700 rounded-lg shadow-lg py-1 z-30 border border-gray-600 max-h-48 overflow-y-auto">
-                        {profiles.length > 0 ? profiles.map(profile => (
+                        {presets.length > 0 ? presets.map(preset => (
                             <button
-                                key={profile.name}
-                                onClick={() => handleLoadProfileClick(profile.url)}
+                                key={preset.name}
+                                onClick={() => handleLoadPresetClick(preset.url)}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
                             >
-                                {profile.name}
+                                {preset.name}
                             </button>
                         )) : (
-                           <p className="text-center text-gray-400 text-sm py-2">No profiles found.</p>
+                           <p className="text-center text-gray-400 text-sm py-2">No presets found.</p>
                         )}
                     </div>
                 )}
@@ -194,11 +193,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
         </div>
       </div>
       
-      {pendingProfileUrl && (
+      {pendingPresetUrl && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 space-y-4 border border-gray-700">
-            <h2 className="text-xl font-bold text-white">Load Profile</h2>
-            <p className="text-gray-300">How would you like to load this profile?</p>
+            <h2 className="text-xl font-bold text-white">Load Preset</h2>
+            <p className="text-gray-300">How would you like to load this preset?</p>
             <div className="space-y-3 text-left">
                 <div className="p-3 bg-gray-900 rounded-md border border-gray-700">
                     <p className="text-md font-semibold text-blue-400">Replace</p>
@@ -206,28 +205,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
                 </div>
                 <div className="p-3 bg-gray-900 rounded-md border border-gray-700">
                     <p className="text-md font-semibold text-indigo-400">Merge</p>
-                    <p className="text-sm text-gray-400 mt-1">Add new buttons from the profile without overwriting your existing ones.</p>
+                    <p className="text-sm text-gray-400 mt-1">Add new buttons from the preset without overwriting your existing ones.</p>
                 </div>
             </div>
             <div className="flex justify-end gap-4 pt-2">
               <button
-                onClick={() => setPendingProfileUrl(null)}
+                onClick={() => setPendingPresetUrl(null)}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-                disabled={isProfilesLoading}
+                disabled={isPresetsLoading}
               >
                 Cancel
               </button>
               <button
-                onClick={() => executeLoadProfile(pendingProfileUrl, 'merge')}
+                onClick={() => executeLoadPreset(pendingPresetUrl, 'merge')}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                disabled={isProfilesLoading}
+                disabled={isPresetsLoading}
               >
                 Merge
               </button>
               <button
-                onClick={() => executeLoadProfile(pendingProfileUrl, 'replace')}
+                onClick={() => executeLoadPreset(pendingPresetUrl, 'replace')}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                disabled={isProfilesLoading}
+                disabled={isPresetsLoading}
               >
                 Replace
               </button>

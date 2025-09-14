@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -117,7 +118,7 @@ const AppContent: React.FC = () => {
 
   const fetchAndSetDefaultSettings = useCallback(async (isInitialLoad = false) => {
     // This function is now only used for the initial load.
-    // Resetting is handled by the profile loader in SettingsView.
+    // Resetting is handled by the preset loader in SettingsView.
     if (!isInitialLoad) {
         // This part of the logic is now handled in SettingsView.
         // Kept the function signature for simplicity of the initial call.
@@ -126,7 +127,7 @@ const AppContent: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const response = await fetch('https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/profiles/default.json');
+      const response = await fetch('https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/default.json');
       if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
       const defaultSettings = await response.json();
       

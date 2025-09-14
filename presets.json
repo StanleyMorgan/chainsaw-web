@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Default",
+    "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/default.json"
+  },
+  {
+    "name": "DeFi",
+    "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/defi.json"
+  }
+]
