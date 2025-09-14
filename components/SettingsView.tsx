@@ -224,16 +224,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
           <div className="mt-6 pt-6 border-t border-gray-700 flex flex-col sm:flex-row items-center gap-4">
               <div className="w-full sm:w-1/2">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Active Profile
-                </label>
                 <ProfileSelector 
                     activeProfile={activeProfile}
                     setActiveProfile={setActiveProfile}
                     profileNames={profileNames}
                 />
               </div>
-              <div className="w-full sm:w-1/2 flex items-end">
+              <div className="w-full sm:w-1/2">
                 <button
                     onClick={handleSaveProfileClick}
                     className="w-full bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold"
