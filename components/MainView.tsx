@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from './Notification';
 import { useAccount, useSendTransaction, useConfig } from 'wagmi';
@@ -8,7 +8,7 @@ import { readContract, getWalletClient } from '@wagmi/core';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
-import { PlusIcon } from './icons';
+import { PlusIcon, ChevronDownIcon } from './icons';
 import { encodeFunctionData, type Abi, type AbiFunction } from 'viem';
 
 interface MainViewProps {
@@ -29,21 +29,54 @@ const ProfileSelector: React.FC<{
   setActiveProfile: (profile: string) => void;
   profileNames: string[];
 }> = ({ activeProfile, setActiveProfile, profileNames }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isOpen]);
+
+  const handleSelectProfile = (profileName: string) => {
+    setActiveProfile(profileName);
+    setIsOpen(false);
+  };
+
   return (
-    <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-      <label htmlFor="profile-select-main" className="block text-sm font-medium text-gray-300 mb-2">
-        Active Profile
-      </label>
-      <select
-        id="profile-select-main"
-        value={activeProfile}
-        onChange={(e) => setActiveProfile(e.target.value)}
-        className="w-full p-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(prev => !prev)}
+        className="w-full bg-gray-700 text-white rounded-lg py-3 px-4 shadow-lg hover:bg-gray-600 transition-colors duration-200 flex items-center justify-between font-semibold"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
       >
-        {profileNames.map(name => (
-          <option key={name} value={name}>{name}</option>
-        ))}
-      </select>
+        <span>Profile: <span className="font-bold">{activeProfile}</span></span>
+        <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="absolute bottom-full left-0 mb-2 w-full bg-gray-700 rounded-lg shadow-lg py-1 z-20 border border-gray-600 max-h-48 overflow-y-auto">
+          {profileNames.map(name => (
+            <button
+              key={name}
+              onClick={() => handleSelectProfile(name)}
+              className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600"
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
