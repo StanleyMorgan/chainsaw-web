@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Settings, VisibleButtons } from '../types';
 import type { NotificationData } from './Notification';
 import presetsData from '../presets.json';
+import { ChevronDownIcon } from './icons';
 
 interface Preset {
   name: string;
@@ -19,6 +20,64 @@ interface SettingsViewProps {
   profileNames: string[];
   onSaveProfile: (profileName: string, newVisibility: VisibleButtons) => void;
 }
+
+const ProfileSelector: React.FC<{
+  activeProfile: string;
+  setActiveProfile: (profile: string) => void;
+  profileNames: string[];
+}> = ({ activeProfile, setActiveProfile, profileNames }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isOpen]);
+
+  const handleSelectProfile = (profileName: string) => {
+    setActiveProfile(profileName);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(prev => !prev)}
+        className="w-full bg-gray-700 text-white rounded-md py-3 px-4 shadow-lg hover:bg-gray-600 transition-colors duration-200 flex items-center justify-between font-semibold"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+      >
+        <span className="font-bold">{activeProfile}</span>
+        <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="absolute bottom-full left-0 mb-2 w-full bg-gray-700 rounded-lg shadow-lg py-1 z-20 border border-gray-600 max-h-48 overflow-y-auto">
+          {profileNames.map(name => (
+            <button
+              key={name}
+              onClick={() => handleSelectProfile(name)}
+              className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600"
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ 
   settings, 
@@ -144,51 +203,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <div>
-        <h2 className="text-2xl font-bold mb-4">Profile Settings</h2>
-        <div className="bg-gray-800 p-6 rounded-lg flex flex-col sm:flex-row items-center gap-4">
-          <div className="w-full sm:w-1/2">
-            <label htmlFor="profile-select-settings" className="block text-sm font-medium text-gray-300 mb-2">
-              Editing Profile
-            </label>
-            <select
-              id="profile-select-settings"
-              value={activeProfile}
-              onChange={(e) => setActiveProfile(e.target.value)}
-              className="w-full p-2 bg-gray-700 text-white rounded-md border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              {profileNames.map(name => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
+        <h2 className="text-2xl font-bold mb-4">Button Visibility</h2>
+        <div className="bg-gray-800 p-6 rounded-lg">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {Object.keys(settings).length > 0 ? (
+              Object.keys(settings).map((key) => (
+              <label key={key} className="flex items-center space-x-3 cursor-pointer p-2 rounded-md hover:bg-gray-700">
+                <input
+                  type="checkbox"
+                  checked={draftVisibility[key] ?? true}
+                  onChange={(e) => handleVisibilityChange(key, e.target.checked)}
+                  className="h-5 w-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-gray-200 capitalize select-none">{key}</span>
+              </label>
+            ))) : (
+              <p className="text-gray-400 col-span-full">No buttons configured. Add some in the JSON editor below.</p>
+            )}
           </div>
-          <div className="w-full sm:w-1/2 flex items-end">
-            <button
-              onClick={handleSaveProfileClick}
-              className="w-full bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold"
-            >
-              Save Profile
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <div>
-        <h2 className="text-2xl font-bold mb-4">Button Visibility for "{activeProfile}"</h2>
-        <div className="bg-gray-800 p-6 rounded-lg grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {Object.keys(settings).length > 0 ? (
-            Object.keys(settings).map((key) => (
-            <label key={key} className="flex items-center space-x-3 cursor-pointer p-2 rounded-md hover:bg-gray-700">
-              <input
-                type="checkbox"
-                checked={draftVisibility[key] ?? true}
-                onChange={(e) => handleVisibilityChange(key, e.target.checked)}
-                className="h-5 w-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 cursor-pointer"
-              />
-              <span className="text-gray-200 capitalize select-none">{key}</span>
-            </label>
-          ))) : (
-            <p className="text-gray-400 col-span-full">No buttons configured. Add some in the JSON editor below.</p>
-          )}
+
+          <div className="mt-6 pt-6 border-t border-gray-700 flex flex-col sm:flex-row items-center gap-4">
+              <div className="w-full sm:w-1/2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Active Profile
+                </label>
+                <ProfileSelector 
+                    activeProfile={activeProfile}
+                    setActiveProfile={setActiveProfile}
+                    profileNames={profileNames}
+                />
+              </div>
+              <div className="w-full sm:w-1/2 flex items-end">
+                <button
+                    onClick={handleSaveProfileClick}
+                    className="w-full bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold"
+                >
+                    Save Profile
+                </button>
+              </div>
+            </div>
         </div>
       </div>
 
