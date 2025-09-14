@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from './Notification';
@@ -61,7 +62,7 @@ const ProfileSelector: React.FC<{
         aria-haspopup="true"
         aria-expanded={isOpen}
       >
-        <span>Profile: <span className="font-bold">{activeProfile}</span></span>
+        <span className="font-bold">{activeProfile}</span>
         <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       {isOpen && (
@@ -517,22 +518,29 @@ export const MainView: React.FC<MainViewProps> = ({ settings, setSettings, visib
                             <p className="text-gray-300 whitespace-pre-wrap">{hoveredDescription}</p>
                         </div>
                     </div>
-                    {/* Profile Selector */}
-                    <ProfileSelector 
-                        activeProfile={activeProfile}
-                        setActiveProfile={setActiveProfile}
-                        profileNames={profileNames}
-                    />
-                    {/* Add Button */}
-                    <button
-                        onClick={() => setIsAddModalOpen(true)}
-                        className="w-full bg-green-600 text-white rounded-lg py-3 px-4 shadow-lg hover:bg-green-700 transition-colors duration-200 flex items-center justify-center font-semibold"
-                        title="Add New Button"
-                        aria-label="Add New Button"
-                    >
-                        <PlusIcon className="w-6 h-6 mr-2" />
-                        <span>Add Button</span>
-                    </button>
+                    
+                    <div className="flex items-center gap-4">
+                        {/* Profile Selector */}
+                        <div className="flex-1">
+                            <ProfileSelector 
+                                activeProfile={activeProfile}
+                                setActiveProfile={setActiveProfile}
+                                profileNames={profileNames}
+                            />
+                        </div>
+                        {/* Add Button */}
+                        <div className="flex-1">
+                            <button
+                                onClick={() => setIsAddModalOpen(true)}
+                                className="w-full bg-green-600 text-white rounded-lg py-3 px-4 shadow-lg hover:bg-green-700 transition-colors duration-200 flex items-center justify-center font-semibold"
+                                title="Add New Button"
+                                aria-label="Add New Button"
+                            >
+                                <PlusIcon className="w-6 h-6 mr-2" />
+                                <span>Add Button</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
             
