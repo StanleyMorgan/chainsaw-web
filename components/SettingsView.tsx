@@ -1,7 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Settings, VisibleButtons } from '../types';
 import type { NotificationData } from './Notification';
+
+interface Profile {
+  name: string;
+  url: string;
+}
 
 interface SettingsViewProps {
   settings: Settings;
@@ -10,15 +15,69 @@ interface SettingsViewProps {
   setVisibleButtons: (visible: VisibleButtons) => void;
   // FIX: Updated the `showNotification` prop type to accept an optional `duration` argument for consistency with its definition in App.tsx.
   showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
-  onReset: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification, onReset }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSettings, visibleButtons, setVisibleButtons, showNotification }) => {
   const [jsonText, setJsonText] = useState('');
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [isProfilesLoading, setIsProfilesLoading] = useState(false);
+  const [isProfileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setJsonText(JSON.stringify(settings, null, 2));
   }, [settings]);
+
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        const response = await fetch('/profiles.json');
+        if (!response.ok) throw new Error('Failed to load profiles list.');
+        const data = await response.json();
+        setProfiles(data);
+      } catch (error) {
+        console.error(error);
+        showNotification('Could not load configuration profiles.', 'error');
+      }
+    };
+    fetchProfiles();
+  }, [showNotification]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            setProfileDropdownOpen(false);
+        }
+    };
+    if (isProfileDropdownOpen) {
+        document.addEventListener('mousedown', handleOutsideClick);
+        document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+        document.removeEventListener('mousedown', handleOutsideClick);
+        document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isProfileDropdownOpen]);
+
+  const handleLoadProfile = async (url: string) => {
+    setProfileDropdownOpen(false);
+    if (!window.confirm("Are you sure you want to load a new profile? This will overwrite any unsaved changes in the editor.")) {
+      return;
+    }
+    setIsProfilesLoading(true);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
+      const profileSettings = await response.json();
+      setJsonText(JSON.stringify(profileSettings, null, 2));
+      showNotification('Profile loaded into editor. Click "Save" to apply.', 'info');
+    } catch (error) {
+      console.error("Failed to fetch profile:", error);
+      showNotification('Failed to fetch the selected profile.', 'error');
+    } finally {
+      setIsProfilesLoading(false);
+    }
+  };
 
   const handleSave = () => {
     try {
@@ -80,12 +139,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ settings, setSetting
             spellCheck="false"
           />
           <div className="mt-4 flex flex-col sm:flex-row gap-4">
-            <button
-              onClick={onReset}
-              className="w-full sm:w-auto bg-red-600 text-white px-6 py-3 rounded-md hover:bg-red-700 transition-colors duration-200 font-semibold"
-            >
-              Reset to Default
-            </button>
+            <div className="relative" ref={dropdownRef}>
+                <button
+                    onClick={() => setProfileDropdownOpen(prev => !prev)}
+                    disabled={isProfilesLoading}
+                    className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700 transition-colors duration-200 font-semibold flex items-center justify-center disabled:opacity-50 disabled:cursor-wait"
+                >
+                  {isProfilesLoading ? 'Loading...' : 'Load Profile'}
+                </button>
+                {isProfileDropdownOpen && (
+                    <div className="absolute bottom-full left-0 mb-2 w-full sm:w-48 bg-gray-700 rounded-lg shadow-lg py-1 z-30 border border-gray-600 max-h-48 overflow-y-auto">
+                        {profiles.length > 0 ? profiles.map(profile => (
+                            <button
+                                key={profile.name}
+                                onClick={() => handleLoadProfile(profile.url)}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
+                            >
+                                {profile.name}
+                            </button>
+                        )) : (
+                           <p className="text-center text-gray-400 text-sm py-2">No profiles found.</p>
+                        )}
+                    </div>
+                )}
+            </div>
             <button
               onClick={handleSave}
               className="w-full sm:flex-1 bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold text-lg order-first sm:order-last"

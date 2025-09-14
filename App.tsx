@@ -116,23 +116,22 @@ const AppContent: React.FC = () => {
   };
 
   const fetchAndSetDefaultSettings = useCallback(async (isInitialLoad = false) => {
+    // This function is now only used for the initial load.
+    // Resetting is handled by the profile loader in SettingsView.
     if (!isInitialLoad) {
-      if (!window.confirm("Are you sure you want to reset all settings to default? This action cannot be undone.")) {
+        // This part of the logic is now handled in SettingsView.
+        // Kept the function signature for simplicity of the initial call.
         return;
-      }
     }
     
     setIsLoading(true);
     try {
-      const response = await fetch('https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/settings.txt');
+      const response = await fetch('https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/profiles/default.json');
       if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
       const defaultSettings = await response.json();
       
       handleSettingsChange(defaultSettings);
       
-      if (!isInitialLoad) {
-        showNotification('Settings have been reset to default.', 'success');
-      }
     } catch (error) {
       console.error("Failed to fetch or apply default settings:", error);
       showNotification('Failed to fetch default settings. Please check your internet connection.', 'error');
@@ -228,7 +227,6 @@ const AppContent: React.FC = () => {
             visibleButtons={visibleButtons}
             setVisibleButtons={setVisibleButtons}
             showNotification={showNotification}
-            onReset={fetchAndSetDefaultSettings}
           />
         )}
       </main>
