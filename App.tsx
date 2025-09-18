@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -238,7 +239,7 @@ const AppContent: React.FC = () => {
             settings={settings}
             setSettings={handleSettingsChange}
             visibleButtons={currentVisibleButtons}
-            setVisibleButtons={() => {}} // Visibility is now managed by profiles
+            // FIX: Removed 'setVisibleButtons' prop as it does not exist on MainViewProps.
             buttonOrder={Object.keys(settings)}
             onReorder={handleReorder}
             showNotification={showNotification}
