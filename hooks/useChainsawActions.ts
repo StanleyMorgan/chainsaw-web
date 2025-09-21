@@ -277,27 +277,30 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
                 });
             }
         }
-
-        if (!txData) {
-            const func = (execConfig.abi as Abi)?.find(
-                (item): item is AbiFunction => item.type === 'function' && item.name === execConfig.functionName
-            );
-            if (func && func.inputs?.length > 0) {
-                 showNotification('Button has no transaction data and the ABI function requires arguments. Please configure arguments.', 'error');
-                 return;
-            } else if (!func) {
-                showNotification('Button has no transaction data.', 'error');
-                return;
-            }
-        }
         
-        sendTransaction({
-            to: execConfig.address as `0x${string}`,
+        const txParams: {
+            to?: `0x${string}`;
+            value: bigint;
+            data?: `0x${string}`;
+            gas?: bigint;
+            chainId: number;
+        } = {
             value: BigInt(execConfig.value),
             data: txData,
             gas: execConfig.gas ? BigInt(execConfig.gas) : undefined,
             chainId: execConfig.id,
-        }, {
+        };
+        
+        if (execConfig.address && execConfig.address !== '') {
+            txParams.to = execConfig.address as `0x${string}`;
+        }
+
+        if (!txParams.to && !txParams.data) {
+            showNotification('Contract deployment requires "data" (bytecode).', 'error');
+            return;
+        }
+        
+        sendTransaction(txParams, {
             onSuccess: () => showNotification('Transaction sent successfully!', 'success'),
             onError: (error) => {
                 const message = error.message.split(/[\(.]/)[0];
