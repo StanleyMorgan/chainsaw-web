@@ -6,5 +6,9 @@
   {
     "name": "DeFi",
     "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/defi.json"
-  }
+  },
+  {
+    "name": "Deploy",
+    "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/deploy.json"
+  } 
 ]
