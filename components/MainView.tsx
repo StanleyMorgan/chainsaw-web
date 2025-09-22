@@ -68,14 +68,17 @@ export const MainView: React.FC<MainViewProps> = ({
     }
     
     let hasEmptyArgs = false;
+    const isDeploy = execConfig.address === '';
 
     if (execConfig.abi) {
-        const func = (execConfig.abi as Abi)?.find(
-          (item): item is AbiFunction => item.type === 'function' && item.name === execConfig.functionName
-        );
+        const abi = execConfig.abi as Abi;
+        const abiItem = isDeploy
+            ? abi.find((item) => item.type === 'constructor')
+            : abi.find((item): item is AbiFunction => item.type === 'function' && item.name === execConfig.functionName);
 
-        if (func?.inputs && func.inputs.length > 0) {
-            hasEmptyArgs = func.inputs.some((input, index) => {
+        // Ensure that the ABI item has an 'inputs' array before accessing it.
+        if (abiItem && 'inputs' in abiItem && Array.isArray(abiItem.inputs) && abiItem.inputs.length > 0) {
+            hasEmptyArgs = abiItem.inputs.some((input, index) => {
                 const arg = execConfig.args?.[index];
                 if (input.type === 'tuple') {
                     // For now, always prompt for tuples to ensure complex data is correct.

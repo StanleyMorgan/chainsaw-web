@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
@@ -9,9 +10,13 @@ interface InputModalProps {
   config: ButtonConfig | null;
   onSubmit: (args: any[]) => void;
   onSave: (args: any[]) => void;
-  // FIX: Updated the `showNotification` prop type to accept an optional `duration` argument for consistency with its definition in App.tsx.
   showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
 }
+
+// A type guard to check for the 'inputs' property on a function or constructor ABI item.
+const hasInputs = (item: any): item is ({ type: 'constructor' } | AbiFunction) & { inputs: readonly AbiParameter[] } => {
+  return item && (item.type === 'constructor' || item.type === 'function') && Array.isArray(item.inputs);
+};
 
 // Helper to get a value from a nested object/array using a path
 const getDeep = (obj: any, path: (string | number)[]): any => {
@@ -38,13 +43,22 @@ const isValueEmpty = (value: any): boolean => {
 export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config, onSubmit, onSave, showNotification }) => {
     const [argValues, setArgValues] = useState<any[]>([]);
 
-    const selectedFunction = useMemo(() => {
+    const selectedAbiItem = useMemo(() => {
         if (!config || !config.abi) return null;
+        
+        const isDeploy = config.address === '';
+
         try {
             const abi = (typeof config.abi === 'string' ? JSON.parse(config.abi) : config.abi) as Abi;
-            let functionName = config.functionName;
+            
+            if (isDeploy) {
+                return abi.find((item) => item.type === 'constructor') || null;
+            }
 
+            // Standard function call logic
+            let functionName = config.functionName;
             const functionsInAbi = abi.filter((item): item is AbiFunction => item.type === 'function');
+            
             if (!functionName) {
                 if (functionsInAbi.length === 1) {
                     functionName = functionsInAbi[0].name;
@@ -57,8 +71,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
     }, [config]);
 
     const processArgs = useCallback((valuesToProcess: any[]): any[] | null => {
-        if (!selectedFunction) {
-            showNotification('Could not determine function from ABI.', 'error');
+        if (!hasInputs(selectedAbiItem)) {
+            showNotification('Could not determine ABI item (function or constructor).', 'error');
             return null;
         }
 
@@ -104,15 +118,15 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         };
         
         try {
-            return selectedFunction.inputs.map((input, index) => convertValue(input, valuesToProcess[index]));
+            return selectedAbiItem.inputs.map((input, index) => convertValue(input, valuesToProcess[index]));
         } catch (e: any) {
             showNotification(`Error: ${e.message}`, 'error');
             return null;
         }
-    }, [selectedFunction, showNotification]);
+    }, [selectedAbiItem, showNotification]);
     
     useEffect(() => {
-        if (selectedFunction) {
+        if (hasInputs(selectedAbiItem)) {
             try {
                 const createDefaultValue = (input: AbiParameter): any => {
                     if (input.type === 'tuple') {
@@ -144,17 +158,17 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                     });
                 };
 
-                if (config?.args && config.args.length === selectedFunction.inputs.length) {
-                    setArgValues(formatSavedArgsForUI(selectedFunction.inputs, config.args));
+                if (config?.args && config.args.length === selectedAbiItem.inputs.length) {
+                    setArgValues(formatSavedArgsForUI(selectedAbiItem.inputs, config.args));
                 } else {
-                    setArgValues(selectedFunction.inputs.map(createDefaultValue));
+                    setArgValues(selectedAbiItem.inputs.map(createDefaultValue));
                 }
             } catch (e: any) {
                 showNotification(`ABI Error: ${e.message}`, 'error');
                 onClose();
             }
         }
-    }, [selectedFunction, config, showNotification, onClose]);
+    }, [selectedAbiItem, config, showNotification, onClose]);
     
     const handleArgChange = (path: (string | number)[], value: string) => {
         setArgValues(prev => updateDeep(prev, path, value));
@@ -202,9 +216,9 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         onSave(argValues);
         showNotification('Inputs saved as default for this button.', 'success');
         
-        if (selectedFunction) {
+        if (hasInputs(selectedAbiItem)) {
             // Check if the values we just saved fill all the required inputs
-            const visibleAfterSave = checkVisibleInputs(selectedFunction.inputs, argValues, [], false);
+            const visibleAfterSave = checkVisibleInputs(selectedAbiItem.inputs, argValues, [], false);
             if (visibleAfterSave.length === 0) {
                 // If the form is now complete, just close the modal without submitting.
                 onClose();
@@ -223,8 +237,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
     };
 
     useEffect(() => {
-        if (isOpen && selectedFunction && config) {
-            const visible = checkVisibleInputs(selectedFunction.inputs, config.args, [], false);
+        if (isOpen && hasInputs(selectedAbiItem) && config) {
+            const visible = checkVisibleInputs(selectedAbiItem.inputs, config.args, [], false);
             if (visible.length === 0) {
                  // All fields are pre-filled, so we can submit automatically.
                  // We use the saved args from config, not the UI state.
@@ -238,7 +252,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                 }
             }
         }
-    }, [isOpen, selectedFunction, config, checkVisibleInputs, processArgs, onSubmit, onClose]);
+    }, [isOpen, selectedAbiItem, config, checkVisibleInputs, processArgs, onSubmit, onClose]);
 
 
     const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean): (React.ReactElement | null)[] => {
@@ -293,11 +307,11 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         });
     };
 
-    if (!isOpen || !config || !selectedFunction) {
+    if (!isOpen || !config || !hasInputs(selectedAbiItem)) {
         return null;
     }
     
-    const renderedFields = renderInputFields(selectedFunction.inputs, [], false).filter(Boolean);
+    const renderedFields = renderInputFields(selectedAbiItem.inputs, [], false).filter(Boolean);
 
     if (renderedFields.length === 0 && isOpen) {
         // This handles the case where the modal might briefly flash before auto-submitting.
@@ -309,7 +323,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4">
                 <h2 className="text-2xl font-bold text-blue-400 font-mono">
-                    {selectedFunction.name}
+                    {selectedAbiItem.type === 'constructor' ? 'Deploy Contract' : (selectedAbiItem as AbiFunction).name}
                 </h2>
 
                 <div className="space-y-4 max-h-[60vh] overflow-y-auto py-4 px-2">

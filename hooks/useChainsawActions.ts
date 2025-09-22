@@ -3,7 +3,7 @@ import type { ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from '../components/Notification';
 import { useAccount, useSendTransaction, useConfig } from 'wagmi';
 import { readContract, getWalletClient } from '@wagmi/core';
-import { encodeFunctionData, type Abi, type AbiFunction } from 'viem';
+import { encodeFunctionData, encodeDeployData, type Abi, type AbiFunction } from 'viem';
 
 const formatReadData = (data: any): string => {
   if (data === null || data === undefined) {
@@ -259,6 +259,8 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
     if (!networkReady) return;
 
     try {
+        const isDeploy = execConfig.address === '';
+
         let finalArgs: any[] | null = [];
         if (execConfig.abi) {
             finalArgs = await processArgsForReads(args || execConfig.args, execConfig);
@@ -266,15 +268,33 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
         }
 
         let txData: `0x${string}` | undefined;
-        if (execConfig.data) {
-            txData = execConfig.data as `0x${string}`;
-        } else if (execConfig.abi) {
-            if (execConfig.functionName) {
-                txData = encodeFunctionData({
+
+        if (isDeploy) {
+            if (!execConfig.data) {
+                showNotification('Contract deployment requires "data" (bytecode).', 'error');
+                return;
+            }
+            if (execConfig.abi) {
+                // For deployment, 'data' is the bytecode.
+                txData = encodeDeployData({
                     abi: execConfig.abi as Abi,
-                    functionName: execConfig.functionName,
+                    bytecode: execConfig.data as `0x${string}`,
                     args: finalArgs,
                 });
+            } else {
+                txData = execConfig.data as `0x${string}`; // Bytecode without constructor args
+            }
+        } else { // It's a function call
+            if (execConfig.data) {
+                txData = execConfig.data as `0x${string}`;
+            } else if (execConfig.abi) {
+                if (execConfig.functionName) {
+                    txData = encodeFunctionData({
+                        abi: execConfig.abi as Abi,
+                        functionName: execConfig.functionName,
+                        args: finalArgs,
+                    });
+                }
             }
         }
         
@@ -291,11 +311,16 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
             chainId: execConfig.id,
         };
         
-        if (execConfig.address && execConfig.address !== '') {
+        if (!isDeploy && execConfig.address) {
             txParams.to = execConfig.address as `0x${string}`;
         }
 
-        if (!txParams.to && !txParams.data) {
+        // Final validation before sending
+        if (!isDeploy && !txParams.to) {
+             showNotification('Transaction requires a target address.', 'error');
+             return;
+        }
+        if (isDeploy && !txParams.data) {
             showNotification('Contract deployment requires "data" (bytecode).', 'error');
             return;
         }
