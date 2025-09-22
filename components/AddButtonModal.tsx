@@ -97,13 +97,20 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
           if (!Array.isArray(config.abi)) {
               throw new Error('"abi" must be an array.');
           }
-          const functionsInAbi = config.abi.filter((item: any) => item.type === 'function');
-          if (functionsInAbi.length === 0) {
-              throw new Error('The provided ABI contains no functions.');
+          
+          const isDeploy = config.address === "";
+
+          // The ABI must have functions only if it's a function call (not a deploy)
+          if (!isDeploy) {
+              const functionsInAbi = config.abi.filter((item: any) => item.type === 'function');
+              if (functionsInAbi.length === 0) {
+                  throw new Error('The provided ABI contains no functions.');
+              }
+              if (functionsInAbi.length > 1 && !config.functionName) {
+                  throw new Error('The ABI has multiple functions. Please specify which to call using "functionName".');
+              }
           }
-          if (functionsInAbi.length > 1 && !config.functionName) {
-              throw new Error('The ABI has multiple functions. Please specify which to call using "functionName".');
-          }
+          
           if (config.args && !Array.isArray(config.args)) {
               throw new Error('"args" must be an array.');
           }
