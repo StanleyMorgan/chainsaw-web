@@ -1,14 +1,16 @@
 
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
 import type { Abi, AbiFunction, AbiParameter } from 'viem';
+import { isAddress } from 'viem';
 
 interface InputModalProps {
   isOpen: boolean;
   onClose: () => void;
   config: ButtonConfig | null;
-  onSubmit: (args: any[]) => void;
+  onSubmit: (payload: { args: any[], contractAddress?: string }) => void;
   onSave: (args: any[]) => void;
   showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
 }
@@ -42,6 +44,9 @@ const isValueEmpty = (value: any): boolean => {
 
 export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config, onSubmit, onSave, showNotification }) => {
     const [argValues, setArgValues] = useState<any[]>([]);
+    const [contractAddress, setContractAddress] = useState('');
+
+    const isAddressPrompt = useMemo(() => config?.address === '$contractAddress', [config]);
 
     const selectedAbiItem = useMemo(() => {
         if (!config || !config.abi) return null;
@@ -72,8 +77,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
     const processArgs = useCallback((valuesToProcess: any[]): any[] | null => {
         if (!hasInputs(selectedAbiItem)) {
-            showNotification('Could not determine ABI item (function or constructor).', 'error');
-            return null;
+            // If no inputs are defined (e.g. data-only tx), return empty array
+            return valuesToProcess;
         }
 
         const convertValue = (abiDef: AbiParameter, value: any): any => {
@@ -167,6 +172,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                 showNotification(`ABI Error: ${e.message}`, 'error');
                 onClose();
             }
+        } else {
+            setArgValues(config?.args || []);
         }
     }, [selectedAbiItem, config, showNotification, onClose]);
     
@@ -176,9 +183,18 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
     const handleSubmit = () => {
         const processedArgs = processArgs(argValues);
-        if (processedArgs) {
-            onSubmit(processedArgs);
+        if (processedArgs === null) return;
+
+        const payload: { args: any[], contractAddress?: string } = { args: processedArgs };
+
+        if (isAddressPrompt) {
+            if (!isAddress(contractAddress)) {
+                showNotification('Please enter a valid contract address.', 'error');
+                return;
+            }
+            payload.contractAddress = contractAddress;
         }
+        onSubmit(payload);
     };
 
     const checkVisibleInputs = useCallback((
@@ -219,7 +235,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         if (hasInputs(selectedAbiItem)) {
             // Check if the values we just saved fill all the required inputs
             const visibleAfterSave = checkVisibleInputs(selectedAbiItem.inputs, argValues, [], false);
-            if (visibleAfterSave.length === 0) {
+            if (visibleAfterSave.length === 0 && !isAddressPrompt) {
                 // If the form is now complete, just close the modal without submitting.
                 onClose();
             }
@@ -238,13 +254,17 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
     useEffect(() => {
         if (isOpen && hasInputs(selectedAbiItem) && config) {
+            if (isAddressPrompt) {
+                // If we need to ask for an address, never auto-submit.
+                return;
+            }
             const visible = checkVisibleInputs(selectedAbiItem.inputs, config.args, [], false);
             if (visible.length === 0) {
                  // All fields are pre-filled, so we can submit automatically.
                  // We use the saved args from config, not the UI state.
                 const processedArgs = processArgs(config.args || []);
                 if (processedArgs) {
-                    onSubmit(processedArgs);
+                    onSubmit({ args: processedArgs });
                 } else {
                     // If processing fails, it's safer to close the modal
                     // than to get stuck in a loop. A notification will be shown.
@@ -252,7 +272,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                 }
             }
         }
-    }, [isOpen, selectedAbiItem, config, checkVisibleInputs, processArgs, onSubmit, onClose]);
+    }, [isOpen, selectedAbiItem, config, isAddressPrompt, checkVisibleInputs, processArgs, onSubmit, onClose]);
 
 
     const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean): (React.ReactElement | null)[] => {
@@ -307,13 +327,12 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         });
     };
 
-    if (!isOpen || !config || !hasInputs(selectedAbiItem)) {
-        return null;
-    }
+    if (!isOpen || !config) return null;
     
-    const renderedFields = renderInputFields(selectedAbiItem.inputs, [], false).filter(Boolean);
+    const abiItemExists = hasInputs(selectedAbiItem);
+    const renderedFields = abiItemExists ? renderInputFields(selectedAbiItem.inputs, [], false).filter(Boolean) : [];
 
-    if (renderedFields.length === 0 && isOpen) {
+    if (renderedFields.length === 0 && !isAddressPrompt && isOpen) {
         // This handles the case where the modal might briefly flash before auto-submitting.
         // Or if for some reason auto-submit fails, it ensures we don't show an empty modal.
         return null;
@@ -323,10 +342,28 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4">
                 <h2 className="text-2xl font-bold text-blue-400 font-mono">
-                    {selectedAbiItem.type === 'constructor' ? 'Deploy Contract' : (selectedAbiItem as AbiFunction).name}
+                    {config.functionName || (abiItemExists && selectedAbiItem.type === 'constructor' ? 'Deploy Contract' : 'Provide Inputs')}
                 </h2>
 
                 <div className="space-y-4 max-h-[60vh] overflow-y-auto py-4 px-2">
+                   {isAddressPrompt && (
+                        <>
+                            <div>
+                                <label htmlFor="contract-address" className="block text-sm font-medium text-gray-300 font-bold">
+                                    Contract Address
+                                </label>
+                                <input
+                                    id="contract-address"
+                                    type="text"
+                                    value={contractAddress}
+                                    onChange={(e) => setContractAddress(e.target.value)}
+                                    className="w-full mt-1 p-2 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    placeholder="0x..."
+                                />
+                            </div>
+                            {renderedFields.length > 0 && <hr className="border-gray-600 my-4" />}
+                        </>
+                   )}
                    {renderedFields}
                 </div>
 

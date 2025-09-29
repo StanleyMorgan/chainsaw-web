@@ -1,3 +1,4 @@
+
 import { useCallback } from 'react';
 import type { ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from '../components/Notification';
@@ -255,6 +256,13 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
     if (!isConnected || !address) return;
 
     const execConfig = getExecutionConfig(config);
+
+    if (execConfig.address === '$contractAddress') {
+        showNotification('A contract address is required for this transaction.', 'error');
+        // This case should be handled by the UI modal, but this is a safeguard.
+        return;
+    }
+    
     const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
     if (!networkReady) return;
 

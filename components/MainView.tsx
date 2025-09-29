@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
@@ -67,6 +68,7 @@ export const MainView: React.FC<MainViewProps> = ({
       return;
     }
     
+    const needsAddress = execConfig.address === '$contractAddress';
     let hasEmptyArgs = false;
     const isDeploy = execConfig.address === '';
 
@@ -90,7 +92,7 @@ export const MainView: React.FC<MainViewProps> = ({
         }
     }
 
-    if (hasEmptyArgs) {
+    if (hasEmptyArgs || needsAddress) {
         setCurrentConfigForInput({ key, config: execConfig });
         setIsInputModalOpen(true);
     } else {
@@ -98,9 +100,13 @@ export const MainView: React.FC<MainViewProps> = ({
     }
   };
 
-  const handleInputModalSubmit = (args: any[]) => {
+  const handleInputModalSubmit = (payload: { args: any[], contractAddress?: string }) => {
     if (currentConfigForInput) {
-      handleTransaction(currentConfigForInput.config, args);
+      const newConfig = { ...currentConfigForInput.config };
+      if (payload.contractAddress) {
+          newConfig.address = payload.contractAddress;
+      }
+      handleTransaction(newConfig, payload.args);
     }
     setIsInputModalOpen(false);
     setCurrentConfigForInput(null);
