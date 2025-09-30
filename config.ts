@@ -1,4 +1,5 @@
-/// <reference types="vite/client" />
+// FIX: Removed '/// <reference types="vite/client" />' as the type definition file could not be found.
+// The usage of import.meta.env is cast to 'any' below to bypass TypeScript errors in an environment where tsconfig.json is not configured for Vite.
 
 import { createStorage } from 'wagmi';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
@@ -8,7 +9,8 @@ import type { Chain } from 'viem';
 // This is a public demo project ID from WalletConnect.
 // For a production application, you should get your own project ID from https://cloud.walletconnect.com/
 // and set it as VITE_PROJECT_ID in your .env.local file.
-export const projectId = import.meta.env.VITE_PROJECT_ID || '2b73abf5eb497019fbadec99ca8d2b8b';
+// FIX: Cast `import.meta` to `any` to access `env` without Vite client types being available to TypeScript.
+export const projectId = (import.meta as any).env.VITE_PROJECT_ID || '2b73abf5eb497019fbadec99ca8d2b8b';
 
 if (!projectId) {
   throw new Error('VITE_PROJECT_ID is not defined. Please set it in .env.local');
