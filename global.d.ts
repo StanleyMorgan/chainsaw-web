@@ -1,7 +1,12 @@
-// FIX: Add a triple-slash directive to include Vite's client-side types.
-// This provides type definitions for `import.meta.env` and ensures the TypeScript
-// language server correctly processes the JSX namespace augmentations for a Vite project.
-/// <reference types="vite/client" />
+// FIX: Manually define Vite client types to resolve errors with `import.meta.env`
+// and the `vite/client` type reference.
+interface ImportMetaEnv {
+  readonly VITE_PROJECT_ID: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
 
 import 'react';
 
