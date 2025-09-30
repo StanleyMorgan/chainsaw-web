@@ -1,13 +1,3 @@
-// FIX: Manually define Vite client types to resolve errors with `import.meta.env`
-// and the `vite/client` type reference.
-interface ImportMetaEnv {
-  readonly VITE_PROJECT_ID: string;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
-
 import 'react';
 
 declare global {

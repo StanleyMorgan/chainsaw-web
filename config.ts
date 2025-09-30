@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import { createStorage } from 'wagmi';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { mainnet, base, celo, linea, optimism, sei } from '@reown/appkit/networks';
