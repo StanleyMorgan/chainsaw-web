@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -7,65 +5,34 @@ import { SettingsView } from './components/SettingsView';
 import { Notification, NotificationData } from './components/Notification';
 import type { Settings, VisibleButtons, ProfileVisibility } from './types';
 
-import '@rainbow-me/rainbowkit/styles.css';
-import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import { WagmiProvider, useAccount } from 'wagmi';
-// FIX: Correctly import chains from 'viem/chains' as required by recent versions of wagmi and RainbowKit.
-import { 
-  mainnet,
-  base,
-  celo,
-  ink,
-  linea,
-  lisk,
-  mode,
-  monadTestnet,
-  optimism,
-  plume,
-  sei,
-  somniaTestnet,
-  soneium,
-  superseed,
-  unichain,
-  worldchain
-} from 'viem/chains';
-// Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
-// FIX: Split the import for QueryClient to resolve a module resolution error, importing it directly from @tanstack/query-core.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { QueryClient } from '@tanstack/query-core';
-
-// This is a public demo project ID from WalletConnect.
-// For a production application, you should get your own project ID from https://cloud.walletconnect.com/
-const projectId = '2b73abf5eb497019fbadec99ca8d2b8b';
-
-const config = getDefaultConfig({
-  appName: 'Chainsaw',
-  appDescription: 'A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.',
-  appUrl: window.location.origin,
-  appIcon: 'https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png',
-  projectId: projectId,
-  chains: [
-    mainnet,
-    base,
-    celo,
-    ink,
-    linea,
-    lisk,
-    mode,
-    monadTestnet,
-    optimism,
-    plume,
-    sei,
-    somniaTestnet,
-    soneium,
-    superseed,
-    unichain,
-    worldchain
-  ],
-  ssr: false, // If your dApp uses server side rendering (SSR)
-});
+import { createAppKit } from '@reown/appkit/react';
+import { config, networks, projectId, wagmiAdapter } from './config';
+import { mainnet } from '@reown/appkit/networks';
 
 const queryClient = new QueryClient();
+
+const metadata = {
+  name: 'Chainsaw',
+  description: 'A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.',
+  url: typeof window !== 'undefined' ? window.location.origin : 'https://chainsaw.app',
+  icons: ['https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png'],
+};
+
+if (!projectId) {
+  console.error("AppKit Initialization Error: Project ID is missing.");
+} else {
+  createAppKit({
+    adapters: [wagmiAdapter],
+    projectId: projectId!,
+    networks: networks,
+    defaultNetwork: mainnet,
+    metadata,
+    features: { analytics: true },
+  });
+}
 
 const PROFILE_NAMES = ['Profile 1', 'Profile 2', 'Profile 3', 'Profile 4'];
 
@@ -239,7 +206,6 @@ const AppContent: React.FC = () => {
             settings={settings}
             setSettings={handleSettingsChange}
             visibleButtons={currentVisibleButtons}
-            // FIX: Removed 'setVisibleButtons' prop as it does not exist on MainViewProps.
             buttonOrder={Object.keys(settings)}
             onReorder={handleReorder}
             showNotification={showNotification}
@@ -270,9 +236,7 @@ const App: React.FC = () => {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
-          <AppContent />
-        </RainbowKitProvider>
+        <AppContent />
       </QueryClientProvider>
     </WagmiProvider>
   );
