@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainView } from './components/MainView';
@@ -80,6 +78,7 @@ const config = defaultWagmiConfig({
 createWeb3Modal({
   wagmiConfig: config,
   projectId,
+  allowUnsupportedChain: true,
   enableAnalytics: true, // Optional - defaults to your Cloud configuration
   enableEIP6963: true,
 });
