@@ -69,6 +69,7 @@ const config = defaultWagmiConfig({
   // FIX: Disabled email authentication as it appears to require a SIWE configuration which is not provided, causing a type error.
   auth: {
     email: false,
+    socials: ['google'],
     showWallets: true,
   },
   ssr: false, // If your dApp uses server side rendering (SSR)
