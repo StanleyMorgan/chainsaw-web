@@ -33,7 +33,7 @@ import { QueryClient } from '@tanstack/query-core';
 
 // 1. Get projectId from https://cloud.walletconnect.com
 // FIX: Removed `as any` type assertion now that `import.meta.env` is properly typed.
-const projectId = import.meta.env.VITE_PROJECT_ID || '2b73abf5eb497019fbadec99ca8d2b8b';
+const projectId = import.meta.env.VITE_PROJECT_ID;
 
 // 2. Create wagmiConfig
 const metadata = {
@@ -69,7 +69,6 @@ const config = defaultWagmiConfig({
   // FIX: Disabled email authentication as it appears to require a SIWE configuration which is not provided, causing a type error.
   auth: {
     email: false,
-    socials: ['github', 'google', 'x', 'discord', 'apple'],
     showWallets: true,
   },
   ssr: false, // If your dApp uses server side rendering (SSR)
