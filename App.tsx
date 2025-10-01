@@ -67,7 +67,7 @@ const config = defaultWagmiConfig({
   // FIX: Disabled email authentication as it appears to require a SIWE configuration which is not provided, causing a type error.
   auth: {
     email: false,
-    socials: ['github', 'google', 'x', 'discord', 'apple'],
+    socials: [],
     showWallets: true,
   },
   ssr: false, // If your dApp uses server side rendering (SSR)
@@ -80,7 +80,7 @@ createWeb3Modal({
   projectId,
   allowUnsupportedChain: true,
   enableAnalytics: true, // Optional - defaults to your Cloud configuration
-  enableEIP6963: false,
+  enableEIP6963: true,
 });
 
 const queryClient = new QueryClient();
