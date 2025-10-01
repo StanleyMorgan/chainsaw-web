@@ -1,4 +1,24 @@
+
 import type { Abi } from 'viem';
+
+// FIX: Add global declarations for custom JSX elements and Vite environment variables.
+declare global {
+  // Add type declaration for the <w3m-button> web component
+  namespace JSX {
+    interface IntrinsicElements {
+      'w3m-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+    }
+  }
+
+  // Add type declarations for Vite environment variables.
+  interface ImportMetaEnv {
+    readonly VITE_PROJECT_ID: string;
+  }
+
+  interface ImportMeta {
+    readonly env: ImportMetaEnv;
+  }
+}
 
 // Defines a read call that can be embedded directly into the `args` array.
 export interface ReadCall {

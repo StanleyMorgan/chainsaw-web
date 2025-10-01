@@ -7,10 +7,9 @@ import { SettingsView } from './components/SettingsView';
 import { Notification, NotificationData } from './components/Notification';
 import type { Settings, VisibleButtons, ProfileVisibility } from './types';
 
-import '@rainbow-me/rainbowkit/styles.css';
-import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { createWeb3Modal } from "@web3modal/wagmi/react";
+import { defaultWagmiConfig } from "@web3modal/wagmi/react/config";
 import { WagmiProvider, useAccount } from 'wagmi';
-// FIX: Correctly import chains from 'viem/chains' as required by recent versions of wagmi and RainbowKit.
 import { 
   mainnet,
   base,
@@ -29,40 +28,60 @@ import {
   unichain,
   worldchain
 } from 'viem/chains';
-// Fix: Reordered imports to potentially address a parser issue causing a false-positive error on QueryClient export.
-// FIX: Split the import for QueryClient to resolve a module resolution error, importing it directly from @tanstack/query-core.
 import { QueryClientProvider } from '@tanstack/react-query';
 import { QueryClient } from '@tanstack/query-core';
 
-// This is a public demo project ID from WalletConnect.
-// For a production application, you should get your own project ID from https://cloud.walletconnect.com/
-const projectId = '2b73abf5eb497019fbadec99ca8d2b8b';
+// 1. Get projectId from https://cloud.walletconnect.com
+// FIX: Removed `as any` type assertion now that `import.meta.env` is properly typed.
+const projectId = import.meta.env.VITE_PROJECT_ID || '2b73abf5eb497019fbadec99ca8d2b8b';
 
-const config = getDefaultConfig({
-  appName: 'Chainsaw',
-  appDescription: 'A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.',
-  appUrl: window.location.origin,
-  appIcon: 'https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png',
-  projectId: projectId,
-  chains: [
-    mainnet,
-    base,
-    celo,
-    ink,
-    linea,
-    lisk,
-    mode,
-    monadTestnet,
-    optimism,
-    plume,
-    sei,
-    somniaTestnet,
-    soneium,
-    superseed,
-    unichain,
-    worldchain
-  ],
+// 2. Create wagmiConfig
+const metadata = {
+  name: 'Chainsaw',
+  description: 'A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.',
+  url: window.location.origin,
+  icons: ['https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png']
+};
+
+const chains = [
+  mainnet,
+  base,
+  celo,
+  ink,
+  linea,
+  lisk,
+  mode,
+  monadTestnet,
+  optimism,
+  plume,
+  sei,
+  somniaTestnet,
+  soneium,
+  superseed,
+  unichain,
+  worldchain
+] as const;
+
+const config = defaultWagmiConfig({
+  chains,
+  projectId,
+  metadata,
+  // FIX: Disabled email authentication as it appears to require a SIWE configuration which is not provided, causing a type error.
+  auth: {
+    email: false,
+    socials: ['github', 'google', 'x', 'discord', 'apple'],
+    showWallets: true,
+  },
   ssr: false, // If your dApp uses server side rendering (SSR)
+});
+
+// 3. Create modal
+// FIX: Added `enableEIP6963` to satisfy the options type for `createWeb3Modal`.
+createWeb3Modal({
+  wagmiConfig: config,
+  projectId,
+  enableAnalytics: true, // Optional - defaults to your Cloud configuration
+  enableEIP6963: true,
 });
 
 const queryClient = new QueryClient();
@@ -239,7 +258,6 @@ const AppContent: React.FC = () => {
             settings={settings}
             setSettings={handleSettingsChange}
             visibleButtons={currentVisibleButtons}
-            // FIX: Removed 'setVisibleButtons' prop as it does not exist on MainViewProps.
             buttonOrder={Object.keys(settings)}
             onReorder={handleReorder}
             showNotification={showNotification}
@@ -270,9 +288,7 @@ const App: React.FC = () => {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
-          <AppContent />
-        </RainbowKitProvider>
+        <AppContent />
       </QueryClientProvider>
     </WagmiProvider>
   );

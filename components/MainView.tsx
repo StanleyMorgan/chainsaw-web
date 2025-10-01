@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
 import { useAccount } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
 import type { Abi, AbiFunction } from 'viem';
@@ -151,7 +150,7 @@ export const MainView: React.FC<MainViewProps> = ({
               Your powerful tool for interacting with smart contracts. Connect your wallet to get started.
             </p>
             <div className="inline-block">
-              <ConnectButton />
+              <w3m-button />
             </div>
           </div>
         )}

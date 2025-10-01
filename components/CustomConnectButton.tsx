@@ -1,13 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
-import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { useWeb3Modal } from '@web3modal/wagmi/react';
 import { PowerIcon, DisconnectIcon, ChevronDownIcon } from './icons';
 
 export const CustomConnectButton: React.FC = () => {
     const { address, isConnected } = useAccount();
     const { disconnect } = useDisconnect();
-    const { openConnectModal } = useConnectModal();
+    const { open } = useWeb3Modal();
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     
@@ -30,7 +30,7 @@ export const CustomConnectButton: React.FC = () => {
     if (!isConnected || !address) {
         return (
             <button
-                onClick={openConnectModal}
+                onClick={() => open()}
                 className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200"
                 aria-label="Connect Wallet"
             >
