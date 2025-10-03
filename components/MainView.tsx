@@ -7,6 +7,7 @@ import { useAccount } from 'wagmi';
 import { AddButtonModal } from './AddButtonModal';
 import { InputModal } from './InputModal';
 import type { Abi, AbiFunction } from 'viem';
+import { isAddress } from 'viem';
 import { useChainsawActions } from '../hooks/useChainsawActions';
 import { useButtonDragAndDrop } from '../hooks/useButtonDragAndDrop';
 import { InfoPanel } from './InfoPanel';
@@ -123,10 +124,28 @@ export const MainView: React.FC<MainViewProps> = ({
     setCurrentConfigForInput(null);
   };
   
-  const handleInputModalSave = (newArgs: any[]) => {
+  const handleInputModalSave = (payload: { args: any[], contractAddress?: string, chainId?: string }) => {
     if (currentConfigForInput) {
         const { key, config } = currentConfigForInput;
-        const newConfig = { ...config, args: newArgs };
+        const newConfig = { ...config, args: payload.args };
+
+        if (config.address === '$contractAddress' && payload.contractAddress) {
+            if (isAddress(payload.contractAddress)) {
+                newConfig.address = payload.contractAddress;
+            } else if (payload.contractAddress.trim() !== '') {
+                showNotification('Invalid address provided. It was not saved.', 'error');
+            }
+        }
+
+        if (config.id === '$chainId' && payload.chainId) {
+            const chainIdNum = parseInt(payload.chainId, 10);
+            if (!isNaN(chainIdNum)) {
+                newConfig.id = chainIdNum;
+            } else if (payload.chainId.trim() !== '') {
+                showNotification('Invalid Chain ID provided. It was not saved.', 'error');
+            }
+        }
+        
         handleSaveButton(key, newConfig);
     }
   };

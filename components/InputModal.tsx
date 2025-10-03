@@ -11,7 +11,7 @@ interface InputModalProps {
   onClose: () => void;
   config: ButtonConfig | null;
   onSubmit: (payload: { args: any[], contractAddress?: string, chainId?: string }) => void;
-  onSave: (args: any[]) => void;
+  onSave: (payload: { args: any[], contractAddress?: string, chainId?: string }) => void;
   showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
 }
 
@@ -241,7 +241,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
     }, []);
 
     const handleSave = () => {
-        onSave(argValues);
+        onSave({ args: argValues, contractAddress, chainId });
         showNotification('Inputs saved as default for this button.', 'success');
         
         if (hasInputs(selectedAbiItem)) {

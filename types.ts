@@ -2,8 +2,13 @@ import type { Abi } from 'viem';
 
 // FIX: Add global declarations for custom JSX elements and Vite environment variables.
 declare global {
-  // FIX: The type for the <w3m-button> web component is now automatically provided by the @web3modal/wagmi library.
-  // The manual declaration has been removed to resolve a type conflict.
+  // FIX: The type for the <w3m-button> web component is not being picked up automatically from the library.
+  // Manually declaring it here to resolve the 'Property 'w3m-button' does not exist on type 'JSX.IntrinsicElements'' error.
+  namespace JSX {
+    interface IntrinsicElements {
+      'w3m-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+    }
+  }
 
   // Add type declarations for Vite environment variables.
   interface ImportMetaEnv {
