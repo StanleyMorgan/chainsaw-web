@@ -10,7 +10,7 @@ interface InputModalProps {
   isOpen: boolean;
   onClose: () => void;
   config: ButtonConfig | null;
-  onSubmit: (payload: { args: any[], contractAddress?: string }) => void;
+  onSubmit: (payload: { args: any[], contractAddress?: string, chainId?: string }) => void;
   onSave: (args: any[]) => void;
   showNotification: (message: string, type: NotificationData['type'], duration?: number) => void;
 }
@@ -45,8 +45,10 @@ const isValueEmpty = (value: any): boolean => {
 export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config, onSubmit, onSave, showNotification }) => {
     const [argValues, setArgValues] = useState<any[]>([]);
     const [contractAddress, setContractAddress] = useState('');
+    const [chainId, setChainId] = useState('');
 
     const isAddressPrompt = useMemo(() => config?.address === '$contractAddress', [config]);
+    const isChainIdPrompt = useMemo(() => config?.id === '$chainId', [config]);
 
     const selectedAbiItem = useMemo(() => {
         if (!config || !config.abi) return null;
@@ -131,6 +133,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
     }, [selectedAbiItem, showNotification]);
     
     useEffect(() => {
+        setChainId('');
         if (hasInputs(selectedAbiItem)) {
             try {
                 const createDefaultValue = (input: AbiParameter): any => {
@@ -185,7 +188,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         const processedArgs = processArgs(argValues);
         if (processedArgs === null) return;
 
-        const payload: { args: any[], contractAddress?: string } = { args: processedArgs };
+        const payload: { args: any[], contractAddress?: string, chainId?: string } = { args: processedArgs };
 
         if (isAddressPrompt) {
             if (!isAddress(contractAddress)) {
@@ -194,6 +197,15 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
             }
             payload.contractAddress = contractAddress;
         }
+        
+        if (isChainIdPrompt) {
+            if (!chainId || isNaN(parseInt(chainId, 10))) {
+                showNotification('Please enter a valid numeric Chain ID.', 'error');
+                return;
+            }
+            payload.chainId = chainId;
+        }
+
         onSubmit(payload);
     };
 
@@ -235,7 +247,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         if (hasInputs(selectedAbiItem)) {
             // Check if the values we just saved fill all the required inputs
             const visibleAfterSave = checkVisibleInputs(selectedAbiItem.inputs, argValues, [], false);
-            if (visibleAfterSave.length === 0 && !isAddressPrompt) {
+            if (visibleAfterSave.length === 0 && !isAddressPrompt && !isChainIdPrompt) {
                 // If the form is now complete, just close the modal without submitting.
                 onClose();
             }
@@ -254,8 +266,8 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
     useEffect(() => {
         if (isOpen && hasInputs(selectedAbiItem) && config) {
-            if (isAddressPrompt) {
-                // If we need to ask for an address, never auto-submit.
+            if (isAddressPrompt || isChainIdPrompt) {
+                // If we need to ask for an address or chainId, never auto-submit.
                 return;
             }
             const visible = checkVisibleInputs(selectedAbiItem.inputs, config.args, [], false);
@@ -272,7 +284,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                 }
             }
         }
-    }, [isOpen, selectedAbiItem, config, isAddressPrompt, checkVisibleInputs, processArgs, onSubmit, onClose]);
+    }, [isOpen, selectedAbiItem, config, isAddressPrompt, isChainIdPrompt, checkVisibleInputs, processArgs, onSubmit, onClose]);
 
 
     const renderInputFields = (inputs: readonly AbiParameter[], pathPrefix: (string | number)[], isTupleComponent: boolean): (React.ReactElement | null)[] => {
@@ -332,7 +344,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
     const abiItemExists = hasInputs(selectedAbiItem);
     const renderedFields = abiItemExists ? renderInputFields(selectedAbiItem.inputs, [], false).filter(Boolean) : [];
 
-    if (renderedFields.length === 0 && !isAddressPrompt && isOpen) {
+    if (renderedFields.length === 0 && !isAddressPrompt && !isChainIdPrompt && isOpen) {
         // This handles the case where the modal might briefly flash before auto-submitting.
         // Or if for some reason auto-submit fails, it ensures we don't show an empty modal.
         return null;
@@ -346,24 +358,39 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                 </h2>
 
                 <div className="space-y-4 max-h-[60vh] overflow-y-auto py-4 px-2">
-                   {isAddressPrompt && (
-                        <>
-                            <div>
-                                <label htmlFor="contract-address" className="block text-sm font-medium text-gray-300 font-bold">
-                                    Contract Address
-                                </label>
-                                <input
-                                    id="contract-address"
-                                    type="text"
-                                    value={contractAddress}
-                                    onChange={(e) => setContractAddress(e.target.value)}
-                                    className="w-full mt-1 p-2 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                    placeholder="0x..."
-                                />
-                            </div>
-                            {renderedFields.length > 0 && <hr className="border-gray-600 my-4" />}
-                        </>
+                   {isChainIdPrompt && (
+                        <div>
+                            <label htmlFor="chain-id" className="block text-sm font-medium text-gray-300 font-bold">
+                                Chain ID
+                            </label>
+                            <input
+                                id="chain-id"
+                                type="text"
+                                value={chainId}
+                                onChange={(e) => setChainId(e.target.value)}
+                                className="w-full mt-1 p-2 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                placeholder="e.g., 1"
+                            />
+                        </div>
                    )}
+
+                   {isAddressPrompt && (
+                        <div>
+                            <label htmlFor="contract-address" className="block text-sm font-medium text-gray-300 font-bold">
+                                Contract Address
+                            </label>
+                            <input
+                                id="contract-address"
+                                type="text"
+                                value={contractAddress}
+                                onChange={(e) => setContractAddress(e.target.value)}
+                                className="w-full mt-1 p-2 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                placeholder="0x..."
+                            />
+                        </div>
+                   )}
+                   {(isChainIdPrompt || isAddressPrompt) && renderedFields.length > 0 && <hr className="border-gray-600 my-4" />}
+                   
                    {renderedFields}
                 </div>
 

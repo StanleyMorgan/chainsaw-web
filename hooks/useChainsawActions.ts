@@ -187,7 +187,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
         const processedReadArgs = await processArgsForReads(arg.$read.args, parentConfig);
         if (processedReadArgs === null) return null;
 
-        const networkReady = await switchNetworkIfNeeded(parentConfig.id, parentConfig);
+        const networkReady = await switchNetworkIfNeeded(parentConfig.id as number, parentConfig);
         if (!networkReady) return null;
 
         try {
@@ -197,7 +197,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
             abi: readCallConfig.abi as Abi,
             functionName: readCallConfig.functionName,
             args: processedReadArgs,
-            chainId: parentConfig.id,
+            chainId: parentConfig.id as number,
             authorizationList: undefined,
           });
           
@@ -221,7 +221,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
     if (!isConnected || !address) return null;
     
     const execConfig = getExecutionConfig(config);
-    const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
+    const networkReady = await switchNetworkIfNeeded(execConfig.id as number, execConfig);
     if (!networkReady) return null;
 
     try {
@@ -240,7 +240,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
         abi: execConfig.abi as Abi,
         functionName: execConfig.functionName,
         args: processedArgs,
-        chainId: execConfig.id,
+        chainId: execConfig.id as number,
         authorizationList: undefined,
       });
       showNotification(`Result: ${formatReadData(data)}`, 'read', 5000);
@@ -264,7 +264,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
         return;
     }
     
-    const networkReady = await switchNetworkIfNeeded(execConfig.id, execConfig);
+    const networkReady = await switchNetworkIfNeeded(execConfig.id as number, execConfig);
     if (!networkReady) return;
 
     try {
@@ -317,7 +317,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
             value: BigInt(execConfig.value),
             data: txData,
             gas: execConfig.gas ? BigInt(execConfig.gas) : undefined,
-            chainId: execConfig.id,
+            chainId: execConfig.id as number,
         };
         
         if (!isDeploy && execConfig.address) {

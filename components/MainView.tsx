@@ -62,12 +62,9 @@ export const MainView: React.FC<MainViewProps> = ({
     }
 
     const execConfig = getExecutionConfig(config);
-    if (execConfig.readOnly) {
-      executeRead(execConfig, execConfig.args as any[]);
-      return;
-    }
     
     const needsAddress = execConfig.address === '$contractAddress';
+    const needsChainId = execConfig.id === '$chainId';
     let hasEmptyArgs = false;
     const isDeploy = execConfig.address === '';
 
@@ -91,21 +88,36 @@ export const MainView: React.FC<MainViewProps> = ({
         }
     }
 
-    if (hasEmptyArgs || needsAddress) {
+    if (hasEmptyArgs || needsAddress || needsChainId) {
         setCurrentConfigForInput({ key, config: execConfig });
         setIsInputModalOpen(true);
     } else {
-        handleTransaction(execConfig);
+        if (execConfig.readOnly) {
+          executeRead(execConfig, execConfig.args as any[]);
+        } else {
+          handleTransaction(execConfig);
+        }
     }
   };
 
-  const handleInputModalSubmit = (payload: { args: any[], contractAddress?: string }) => {
+  const handleInputModalSubmit = (payload: { args: any[], contractAddress?: string, chainId?: string }) => {
     if (currentConfigForInput) {
       const newConfig = { ...currentConfigForInput.config };
       if (payload.contractAddress) {
           newConfig.address = payload.contractAddress;
       }
-      handleTransaction(newConfig, payload.args);
+      if (payload.chainId) {
+          const chainIdNum = parseInt(payload.chainId, 10);
+          if (!isNaN(chainIdNum)) {
+              newConfig.id = chainIdNum;
+          }
+      }
+
+      if (newConfig.readOnly) {
+        executeRead(newConfig, payload.args);
+      } else {
+        handleTransaction(newConfig, payload.args);
+      }
     }
     setIsInputModalOpen(false);
     setCurrentConfigForInput(null);

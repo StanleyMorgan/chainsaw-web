@@ -28,7 +28,7 @@ export interface ReadCall {
 }
 
 export interface ButtonConfig {
-  id: number;
+  id: number | string;
   address: string;
   value: string;
   data?: string; // Optional: raw transaction data
