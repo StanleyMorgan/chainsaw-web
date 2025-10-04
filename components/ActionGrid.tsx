@@ -8,10 +8,12 @@ interface ActionButtonProps {
 }
 
 const ActionButton: React.FC<ActionButtonProps> = ({ buttonKey, config, onClick }) => {
+    const buttonColor = config.color === '$color' ? '#6B7281' : config.color; // Использовать нейтрально-серый для плейсхолдера
+
     return (
         <button
             onClick={onClick}
-            style={{ backgroundColor: config.color, color: '#FFFFFF' }}
+            style={{ backgroundColor: buttonColor, color: '#FFFFFF' }}
             className="w-full text-white font-bold py-4 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-200 flex items-center justify-center"
         >
             <span className="capitalize">{buttonKey}</span>
