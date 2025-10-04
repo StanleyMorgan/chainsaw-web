@@ -45,6 +45,30 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
     setTemplateDropdownOpen(false);
   };
   
+  const handleCreateFastTemplate = () => {
+    let newKey = 'button';
+    let i = 1;
+    // Find a unique key that doesn't exist in settings
+    while (settings.hasOwnProperty(newKey)) {
+        newKey = `button${i}`;
+        i++;
+    }
+
+    const fastConfig = {
+      [newKey]: {
+        "id": "$chainId",
+        "address": "$contractAddress",
+        "color": "$color",
+        "data": "$data",
+        "description": "$description",
+        "value": "0"
+      }
+    };
+    
+    setJsonConfig(JSON.stringify(fastConfig, null, 2));
+    setTemplateDropdownOpen(false); // Close dropdown if it was open
+  };
+
   const handleSave = () => {
     try {
       if (!jsonConfig.trim()) {
@@ -161,6 +185,13 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
           </button>
 
           <div className="flex items-center gap-4">
+            <button
+              onClick={handleCreateFastTemplate}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              title="Create a fast button template with placeholders"
+            >
+              Fast
+            </button>
             <div className="relative" ref={templateDropdownRef}>
               <button
                 onClick={() => setTemplateDropdownOpen(prev => !prev)}
