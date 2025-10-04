@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
@@ -485,17 +486,17 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
 
                 <div className="flex items-center justify-between pt-2">
                     <button
-                        onClick={handleSave}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                        onClick={onClose}
+                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
                     >
-                        Save
+                        Cancel
                     </button>
                     <div className="flex items-center gap-4">
                         <button
-                            onClick={onClose}
-                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                            onClick={handleSave}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                         >
-                            Cancel
+                            Save
                         </button>
                         <button
                             onClick={handleSubmit}
