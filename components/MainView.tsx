@@ -66,6 +66,8 @@ export const MainView: React.FC<MainViewProps> = ({
     const needsAddress = execConfig.address === '$contractAddress';
     const needsChainId = execConfig.id === '$chainId';
     const needsColor = execConfig.color === '$color';
+    const needsData = execConfig.data === '$data';
+    const needsDescription = execConfig.description === '$description';
     let hasEmptyArgs = false;
     const isDeploy = execConfig.address === '';
 
@@ -89,7 +91,7 @@ export const MainView: React.FC<MainViewProps> = ({
         }
     }
 
-    if (hasEmptyArgs || needsAddress || needsChainId || needsColor) {
+    if (hasEmptyArgs || needsAddress || needsChainId || needsColor || needsData || needsDescription) {
         setCurrentConfigForInput({ key, config: execConfig });
         setIsInputModalOpen(true);
     } else {
@@ -101,7 +103,7 @@ export const MainView: React.FC<MainViewProps> = ({
     }
   };
 
-  const handleInputModalSubmit = (payload: { args: any[], contractAddress?: string, chainId?: string, color?: string }) => {
+  const handleInputModalSubmit = (payload: { args: any[], contractAddress?: string, chainId?: string, color?: string, data?: string, description?: string }) => {
     if (currentConfigForInput) {
       const newConfig = { ...currentConfigForInput.config };
       if (payload.contractAddress) {
@@ -116,6 +118,12 @@ export const MainView: React.FC<MainViewProps> = ({
       if (payload.color) {
           newConfig.color = payload.color;
       }
+      if (payload.data) {
+        newConfig.data = payload.data;
+      }
+      if (payload.description) {
+          newConfig.description = payload.description;
+      }
 
       if (newConfig.readOnly) {
         executeRead(newConfig, payload.args);
@@ -127,7 +135,7 @@ export const MainView: React.FC<MainViewProps> = ({
     setCurrentConfigForInput(null);
   };
   
-  const handleInputModalSave = (payload: { args: any[], contractAddress?: string, chainId?: string, color?: string }) => {
+  const handleInputModalSave = (payload: { args: any[], contractAddress?: string, chainId?: string, color?: string, data?: string, description?: string }) => {
     if (currentConfigForInput) {
         const { key, config } = currentConfigForInput;
         const newConfig = { ...config, args: payload.args };
@@ -154,6 +162,22 @@ export const MainView: React.FC<MainViewProps> = ({
                 newConfig.color = payload.color;
             } else {
                 showNotification('Color value was empty. It was not saved.', 'error');
+            }
+        }
+        
+        if (config.data === '$data' && payload.data) {
+            if (payload.data.trim() !== '') {
+                newConfig.data = payload.data;
+            } else {
+                showNotification('Data value was empty. It was not saved.', 'error');
+            }
+        }
+
+        if (config.description === '$description' && payload.description) {
+            if (payload.description.trim() !== '') {
+                newConfig.description = payload.description;
+            } else {
+                showNotification('Description was empty. It was not saved.', 'error');
             }
         }
         

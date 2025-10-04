@@ -1,3 +1,5 @@
+// FIX: Import React to make React types available for the JSX IntrinsicElements declaration.
+import React from 'react';
 import type { Abi } from 'viem';
 
 // FIX: Add global declarations for custom JSX elements and Vite environment variables.
