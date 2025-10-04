@@ -55,18 +55,16 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
     }
 
     const fastConfig = {
-      [newKey]: {
-        "id": "$chainId",
-        "address": "$contractAddress",
-        "color": "$color",
-        "data": "$data",
-        "description": "$description",
-        "value": "0"
-      }
+      "id": "$chainId",
+      "address": "$contractAddress",
+      "color": "$color",
+      "data": "$data",
+      "description": "$description",
+      "value": "0"
     };
     
-    setJsonConfig(JSON.stringify(fastConfig, null, 2));
-    setTemplateDropdownOpen(false); // Close dropdown if it was open
+    onSave(newKey, fastConfig);
+    onClose();
   };
 
   const handleSave = () => {
