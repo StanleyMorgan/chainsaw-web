@@ -138,6 +138,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
     }, [selectedAbiItem, showNotification]);
     
     useEffect(() => {
+        setContractAddress('');
         setChainId('');
         setColor('');
         setData('');

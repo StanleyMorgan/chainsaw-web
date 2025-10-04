@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
 import { useAccount } from 'wagmi';
@@ -43,6 +43,10 @@ export const MainView: React.FC<MainViewProps> = ({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [currentConfigForInput, setCurrentConfigForInput] = useState<{ key: string; config: ButtonConfig } | null>(null);
+
+  const handleCloseInputModal = useCallback(() => {
+    setIsInputModalOpen(false);
+  }, []);
 
   const handleSaveButton = (key: string, config: ButtonConfig) => {
     const newSettings = { ...settings, [key]: config };
@@ -233,7 +237,7 @@ export const MainView: React.FC<MainViewProps> = ({
       {isInputModalOpen && currentConfigForInput && (
         <InputModal
           isOpen={isInputModalOpen}
-          onClose={() => setIsInputModalOpen(false)}
+          onClose={handleCloseInputModal}
           config={currentConfigForInput.config}
           onSubmit={handleInputModalSubmit}
           onSave={handleInputModalSave}
