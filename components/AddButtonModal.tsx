@@ -156,11 +156,11 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
           <div className="relative" ref={templateDropdownRef}>
             <button
               onClick={() => setTemplateDropdownOpen(prev => !prev)}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               aria-haspopup="true"
               aria-expanded={isTemplateDropdownOpen}
             >
-              Template
+              Load
             </button>
             {isTemplateDropdownOpen && Object.keys(settings).length > 0 && (
               <div className="absolute bottom-full left-0 mb-2 w-48 bg-gray-700 rounded-lg shadow-lg py-1 z-30 border border-gray-600 max-h-48 overflow-y-auto">
@@ -180,15 +180,15 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
           <div className="flex items-center gap-4">
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
             >
-              Save Button
+              Save
             </button>
           </div>
         </div>
