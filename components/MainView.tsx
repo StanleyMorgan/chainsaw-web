@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import type { Settings, VisibleButtons, ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
@@ -66,6 +65,7 @@ export const MainView: React.FC<MainViewProps> = ({
     
     const needsAddress = execConfig.address === '$contractAddress';
     const needsChainId = execConfig.id === '$chainId';
+    const needsColor = execConfig.color === '$color';
     let hasEmptyArgs = false;
     const isDeploy = execConfig.address === '';
 
@@ -89,7 +89,7 @@ export const MainView: React.FC<MainViewProps> = ({
         }
     }
 
-    if (hasEmptyArgs || needsAddress || needsChainId) {
+    if (hasEmptyArgs || needsAddress || needsChainId || needsColor) {
         setCurrentConfigForInput({ key, config: execConfig });
         setIsInputModalOpen(true);
     } else {
@@ -101,7 +101,7 @@ export const MainView: React.FC<MainViewProps> = ({
     }
   };
 
-  const handleInputModalSubmit = (payload: { args: any[], contractAddress?: string, chainId?: string }) => {
+  const handleInputModalSubmit = (payload: { args: any[], contractAddress?: string, chainId?: string, color?: string }) => {
     if (currentConfigForInput) {
       const newConfig = { ...currentConfigForInput.config };
       if (payload.contractAddress) {
@@ -112,6 +112,9 @@ export const MainView: React.FC<MainViewProps> = ({
           if (!isNaN(chainIdNum)) {
               newConfig.id = chainIdNum;
           }
+      }
+      if (payload.color) {
+          newConfig.color = payload.color;
       }
 
       if (newConfig.readOnly) {
@@ -124,7 +127,7 @@ export const MainView: React.FC<MainViewProps> = ({
     setCurrentConfigForInput(null);
   };
   
-  const handleInputModalSave = (payload: { args: any[], contractAddress?: string, chainId?: string }) => {
+  const handleInputModalSave = (payload: { args: any[], contractAddress?: string, chainId?: string, color?: string }) => {
     if (currentConfigForInput) {
         const { key, config } = currentConfigForInput;
         const newConfig = { ...config, args: payload.args };
@@ -143,6 +146,14 @@ export const MainView: React.FC<MainViewProps> = ({
                 newConfig.id = chainIdNum;
             } else if (payload.chainId.trim() !== '') {
                 showNotification('Invalid Chain ID provided. It was not saved.', 'error');
+            }
+        }
+        
+        if (config.color === '$color' && payload.color) {
+            if (payload.color.trim() !== '') {
+                newConfig.color = payload.color;
+            } else {
+                showNotification('Color value was empty. It was not saved.', 'error');
             }
         }
         
