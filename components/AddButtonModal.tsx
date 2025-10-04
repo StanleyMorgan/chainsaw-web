@@ -153,37 +153,38 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
         </div>
 
         <div className="flex items-center justify-between">
-          <div className="relative" ref={templateDropdownRef}>
-            <button
-              onClick={() => setTemplateDropdownOpen(prev => !prev)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              aria-haspopup="true"
-              aria-expanded={isTemplateDropdownOpen}
-            >
-              Load
-            </button>
-            {isTemplateDropdownOpen && Object.keys(settings).length > 0 && (
-              <div className="absolute bottom-full left-0 mb-2 w-48 bg-gray-700 rounded-lg shadow-lg py-1 z-30 border border-gray-600 max-h-48 overflow-y-auto">
-                {Object.keys(settings).map(key => (
-                  <button
-                    key={key}
-                    onClick={() => handleSelectTemplate(key)}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
-                  >
-                    {key}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+          >
+            Cancel
+          </button>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-            >
-              Cancel
-            </button>
+            <div className="relative" ref={templateDropdownRef}>
+              <button
+                onClick={() => setTemplateDropdownOpen(prev => !prev)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                aria-haspopup="true"
+                aria-expanded={isTemplateDropdownOpen}
+              >
+                Load
+              </button>
+              {isTemplateDropdownOpen && Object.keys(settings).length > 0 && (
+                <div className="absolute bottom-full right-0 mb-2 w-48 bg-gray-700 rounded-lg shadow-lg py-1 z-30 border border-gray-600 max-h-48 overflow-y-auto">
+                  {Object.keys(settings).map(key => (
+                    <button
+                      key={key}
+                      onClick={() => handleSelectTemplate(key)}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
+                    >
+                      {key}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            
             <button
               onClick={handleSave}
               className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
