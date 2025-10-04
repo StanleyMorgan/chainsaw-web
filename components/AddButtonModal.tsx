@@ -177,7 +177,7 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
         <div className="flex items-center justify-between">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+            className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
           >
             Cancel
           </button>
@@ -185,7 +185,7 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
           <div className="flex items-center gap-4">
             <button
               onClick={handleCreateFastTemplate}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
               title="Create a fast button template with placeholders"
             >
               Fast
@@ -193,7 +193,7 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
             <div className="relative" ref={templateDropdownRef}>
               <button
                 onClick={() => setTemplateDropdownOpen(prev => !prev)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 aria-haspopup="true"
                 aria-expanded={isTemplateDropdownOpen}
               >
@@ -205,7 +205,7 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
                     <button
                       key={key}
                       onClick={() => handleSelectTemplate(key)}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
+                      className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
                     >
                       {key}
                     </button>
@@ -216,7 +216,7 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
             
             <button
               onClick={handleSave}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+              className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
             >
               Save
             </button>
