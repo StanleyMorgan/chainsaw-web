@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { ButtonConfig } from '../types';
 import type { NotificationData } from './Notification';
@@ -472,7 +471,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
                                 id="data-input"
                                 value={data}
                                 onChange={(e) => setData(e.target.value)}
-                                className="w-full mt-1 p-2 h-24 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                className="w-full mt-1 p-2 h-16 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                 placeholder="0x..."
                                 spellCheck="false"
                             />
