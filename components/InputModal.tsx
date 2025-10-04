@@ -387,7 +387,7 @@ export const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, config,
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 space-y-4">
                 <h2 className="text-2xl font-bold text-blue-400 font-mono">
-                    {config.functionName || (abiItemExists && selectedAbiItem.type === 'constructor' ? 'Deploy Contract' : 'Provide Inputs')}
+                    {config.functionName || (abiItemExists && selectedAbiItem.type === 'constructor' ? 'Deploy Contract' : 'Button Setup')}
                 </h2>
 
                 <div className="space-y-4 max-h-[60vh] overflow-y-auto py-4 px-2">
