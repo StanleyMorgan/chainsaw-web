@@ -179,7 +179,7 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
             onClick={onClose}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
           >
-            Cancel
+            Exit
           </button>
 
           <div className="flex items-center gap-4">
