@@ -174,7 +174,7 @@ export const AddButtonModal: React.FC<AddButtonModalProps> = ({ isOpen, onClose,
             />
         </div>
 
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-end gap-4">
           <button
             onClick={onClose}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
