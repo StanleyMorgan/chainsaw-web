@@ -79,21 +79,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       const presetSettings = await response.json();
 
       if (mode === 'replace') {
-        setJsonText(JSON.stringify(presetSettings, null, 2));
-        showNotification('Preset loaded. Click "Save Configuration" to apply.', 'info');
+        setSettings(presetSettings);
+        showNotification('Preset loaded and applied successfully.', 'success');
       } else { // Merge logic
-        let currentSettings: Settings = {};
-        try {
-          currentSettings = JSON.parse(jsonText);
-          if (typeof currentSettings !== 'object' || currentSettings === null || Array.isArray(currentSettings)) {
-            throw new Error("Current configuration is not a valid JSON object.");
-          }
-        } catch (e) {
-          showNotification('Cannot merge: Current configuration is not valid JSON.', 'error');
-          return;
-        }
-
-        const newSettings = { ...currentSettings };
+        const newSettings = { ...settings };
         let mergedCount = 0;
         Object.keys(presetSettings).forEach(key => {
           if (!newSettings.hasOwnProperty(key)) {
@@ -101,10 +90,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             mergedCount++;
           }
         });
+        
+        setSettings(newSettings);
 
-        setJsonText(JSON.stringify(newSettings, null, 2));
         if (mergedCount > 0) {
-            showNotification(`${mergedCount} new button(s) merged. Click "Save Configuration" to apply.`, 'success');
+            showNotification(`${mergedCount} new button(s) merged and applied.`, 'success');
         } else {
             showNotification('No new buttons to merge. Your configuration is up to date.', 'info');
         }
