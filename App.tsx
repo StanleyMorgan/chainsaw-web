@@ -111,21 +111,36 @@ const AppContent: React.FC = () => {
   }, [isConnected, view, showNotification]);
 
   const handleSettingsChange = useCallback((newSettings: Settings) => {
+    const oldKeys = Object.keys(settings);
+    const newKeys = Object.keys(newSettings);
+    const addedKeys = newKeys.filter(k => !oldKeys.includes(k));
+
     setSettings(newSettings);
-    // When settings change (e.g., new button added), update visibility for all profiles.
+    
+    // When settings change, update visibility for all profiles.
     setProfileVisibility(currentProfiles => {
       const newProfiles: ProfileVisibility = {};
       for (const profileName of PROFILE_NAMES) {
         const existingProfile = currentProfiles[profileName] || {};
         const newVisibility: VisibleButtons = {};
+        
+        // Iterate over all keys in the new settings to handle additions and preserve existing.
+        // This also implicitly handles removals.
         Object.keys(newSettings).forEach(key => {
-          newVisibility[key] = existingProfile[key] !== false;
+          if (addedKeys.includes(key)) {
+            // This is a new button. Activate only for the active profile.
+            newVisibility[key] = (profileName === activeProfile);
+          } else {
+            // This is an existing button. Preserve its visibility.
+            // Default to true if it's somehow not set.
+            newVisibility[key] = existingProfile[key] !== false;
+          }
         });
         newProfiles[profileName] = newVisibility;
       }
       return newProfiles;
     });
-  }, []);
+  }, [settings, activeProfile]);
 
   const handleSaveProfile = useCallback((profileName: string, newVisibility: VisibleButtons) => {
     setProfileVisibility(prev => ({

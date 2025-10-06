@@ -12,23 +12,6 @@ import { useButtonDragAndDrop } from '../hooks/useButtonDragAndDrop';
 import { InfoPanel } from './InfoPanel';
 import { ActionGrid } from './ActionGrid';
 
-// FIX: Add missing JSX declaration for the <w3m-button> web component.
-// The global declaration in types.ts appears not to be applied in this file's context,
-// so it is duplicated here to resolve the TypeScript error.
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'w3m-button': React.HTMLAttributes<HTMLElement> & {
-        label?: string;
-        size?: 'sm' | 'md' | 'lg';
-        loadingLabel?: string;
-        disabled?: boolean;
-        balance?: 'show' | 'hide';
-      };
-    }
-  }
-}
-
 interface MainViewProps {
   settings: Settings;
   setSettings: (settings: Settings) => void;
