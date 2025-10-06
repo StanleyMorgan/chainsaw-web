@@ -156,14 +156,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           <div className="mt-6 pt-6 border-t border-gray-700 flex flex-col sm:flex-row items-center gap-4">
-              <div className="w-full sm:w-1/2">
+              <div className="w-full sm:w-1/3">
                 <ProfileSelector 
                     activeProfile={activeProfile}
                     setActiveProfile={setActiveProfile}
                     profileNames={profileNames}
                 />
               </div>
-              <div className="w-full sm:w-1/2">
+              <div className="w-full sm:w-1/3">
+                 <div className="relative" ref={dropdownRef}>
+                    <button
+                        onClick={() => setPresetDropdownOpen(prev => !prev)}
+                        disabled={isPresetsLoading}
+                        className="w-full bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700 transition-colors duration-200 font-semibold flex items-center justify-center disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      {isPresetsLoading ? 'Loading...' : 'Load Preset'}
+                       <ChevronDownIcon className={`w-5 h-5 ml-2 text-gray-400 transition-transform ${isPresetDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isPresetDropdownOpen && (
+                        <div className="absolute bottom-full left-0 mb-2 w-full bg-gray-700 rounded-lg shadow-lg py-1 z-30 border border-gray-600 max-h-48 overflow-y-auto">
+                            {presets.length > 0 ? presets.map(preset => (
+                                <button
+                                    key={preset.name}
+                                    onClick={() => handleLoadPresetClick(preset.url)}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
+                                >
+                                    {preset.name}
+                                </button>
+                            )) : (
+                               <p className="text-center text-gray-400 text-sm py-2">No presets found.</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+              </div>
+              <div className="w-full sm:w-1/3">
                 <button
                     onClick={handleSaveProfileClick}
                     className="w-full bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold"
@@ -184,35 +211,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             className="w-full h-96 p-4 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             spellCheck="false"
           />
-          <div className="mt-4 flex flex-col sm:flex-row gap-4">
-            <div className="relative" ref={dropdownRef}>
-                <button
-                    onClick={() => setPresetDropdownOpen(prev => !prev)}
-                    disabled={isPresetsLoading}
-                    className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700 transition-colors duration-200 font-semibold flex items-center justify-center disabled:opacity-50 disabled:cursor-wait"
-                >
-                  {isPresetsLoading ? 'Loading...' : 'Load Preset'}
-                   <ChevronDownIcon className={`w-5 h-5 ml-2 text-gray-400 transition-transform ${isPresetDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isPresetDropdownOpen && (
-                    <div className="absolute bottom-full left-0 mb-2 w-full sm:w-48 bg-gray-700 rounded-lg shadow-lg py-1 z-30 border border-gray-600 max-h-48 overflow-y-auto">
-                        {presets.length > 0 ? presets.map(preset => (
-                            <button
-                                key={preset.name}
-                                onClick={() => handleLoadPresetClick(preset.url)}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 capitalize"
-                            >
-                                {preset.name}
-                            </button>
-                        )) : (
-                           <p className="text-center text-gray-400 text-sm py-2">No presets found.</p>
-                        )}
-                    </div>
-                )}
-            </div>
+          <div className="mt-4">
             <button
               onClick={handleSaveConfiguration}
-              className="w-full sm:flex-1 bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold text-lg order-first sm:order-last"
+              className="w-full bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold text-lg"
             >
               Save Configuration
             </button>

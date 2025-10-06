@@ -2,14 +2,13 @@ import type { Abi } from 'viem';
 
 // FIX: Add global declarations for custom JSX elements and Vite environment variables.
 declare global {
-  // FIX: To resolve a type conflict with the library's own declarations, the type for `<w3m-button>` is defined
-  // here with only its specific properties. The conflicting `React.HTMLAttributes<HTMLElement>` has been removed
-  // as standard attributes like `className` are not currently in use for this component.
   namespace JSX {
     interface IntrinsicElements {
-      'w3m-button': {
+      // FIX: Resolved a "Subsequent property declarations" error for `w3m-button`. The original type was missing
+      // React's HTMLAttributes, which are likely part of the library's definition, causing a mismatch. The fix
+      // re-adds HTMLAttributes but uses `Omit` to exclude the conflicting `size` property, ensuring type compatibility.
+      'w3m-button': Omit<React.HTMLAttributes<HTMLElement>, 'size'> & {
         label?: string;
-        // FIX: Corrected the `size` property type to match the library's definition, resolving a TypeScript conflict.
         size?: 'sm' | 'md';
         loadingLabel?: string;
         disabled?: boolean;
