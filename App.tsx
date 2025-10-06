@@ -214,8 +214,10 @@ const AppContent: React.FC = () => {
                 const initialProfiles: ProfileVisibility = {};
                 for (const name of PROFILE_NAMES) {
                     const visibility: VisibleButtons = {};
+                    // On first launch, only make buttons visible for "Profile 1".
+                    const shouldBeVisible = name === PROFILE_NAMES[0];
                     Object.keys(loadedSettings).forEach(key => {
-                        visibility[key] = true; // Default all to visible
+                        visibility[key] = shouldBeVisible;
                     });
                     initialProfiles[name] = visibility;
                 }
