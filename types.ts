@@ -4,16 +4,9 @@ import type { Abi } from 'viem';
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      // FIX: Resolved a "Subsequent property declarations" error for `w3m-button`. The original type was missing
-      // React's HTMLAttributes, which are likely part of the library's definition, causing a mismatch. The fix
-      // re-adds HTMLAttributes but uses `Omit` to exclude the conflicting `size` property, ensuring type compatibility.
-      'w3m-button': Omit<React.HTMLAttributes<HTMLElement>, 'size'> & {
-        label?: string;
-        size?: 'sm' | 'md';
-        loadingLabel?: string;
-        disabled?: boolean;
-        balance?: 'show' | 'hide';
-      };
+      // FIX: Removed the 'w3m-button' type declaration. It was conflicting with the type provided by the
+      // '@web3modal/wagmi/react' package, causing a "Subsequent property declarations must have the same type" error.
+      // The library's built-in type is sufficient for the component's usage within this application.
     }
   }
 

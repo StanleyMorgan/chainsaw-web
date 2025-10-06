@@ -168,7 +168,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <button
                         onClick={() => setPresetDropdownOpen(prev => !prev)}
                         disabled={isPresetsLoading}
-                        className="w-full bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700 transition-colors duration-200 font-semibold flex items-center justify-center disabled:opacity-50 disabled:cursor-wait"
+                        className="w-full bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold flex items-center justify-center disabled:opacity-50 disabled:cursor-wait"
                     >
                       {isPresetsLoading ? 'Loading...' : 'Load Preset'}
                        <ChevronDownIcon className={`w-5 h-5 ml-2 text-gray-400 transition-transform ${isPresetDropdownOpen ? 'rotate-180' : ''}`} />
@@ -193,7 +193,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="w-full sm:w-1/3">
                 <button
                     onClick={handleSaveProfileClick}
-                    className="w-full bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors duration-200 font-semibold"
+                    className="w-full bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold"
                 >
                     Save Profile
                 </button>
@@ -211,10 +211,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             className="w-full h-96 p-4 bg-gray-900 text-gray-200 font-mono rounded-md border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             spellCheck="false"
           />
-          <div className="mt-4">
+          <div className="mt-4 flex justify-center sm:justify-end">
             <button
               onClick={handleSaveConfiguration}
-              className="w-full bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold text-lg"
+              className="w-full sm:w-auto bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold"
             >
               Save Configuration
             </button>
