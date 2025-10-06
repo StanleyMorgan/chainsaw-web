@@ -1,5 +1,3 @@
-// FIX: Import React to make React types available for the JSX IntrinsicElements declaration.
-import React from 'react';
 import type { Abi } from 'viem';
 
 // FIX: Add global declarations for custom JSX elements and Vite environment variables.
@@ -11,7 +9,8 @@ declare global {
     interface IntrinsicElements {
       'w3m-button': {
         label?: string;
-        size?: 'sm' | 'md' | 'lg';
+        // FIX: Corrected the `size` property type to match the library's definition, resolving a TypeScript conflict.
+        size?: 'sm' | 'md';
         loadingLabel?: string;
         disabled?: boolean;
         balance?: 'show' | 'hide';
