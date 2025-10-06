@@ -214,9 +214,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="mt-4 flex justify-center sm:justify-end">
             <button
               onClick={handleSaveConfiguration}
-              className="w-full sm:w-auto bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold"
+              className="w-full sm:w-1/3 bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors duration-200 font-semibold"
             >
-              Save Configuration
+              Save Config
             </button>
           </div>
         </div>
