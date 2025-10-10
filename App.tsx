@@ -4,7 +4,6 @@ import { MainView } from './components/MainView';
 import { SettingsView } from './components/SettingsView';
 import { Notification, NotificationData } from './components/Notification';
 import type { Settings, VisibleButtons, ProfileVisibility } from './types';
-import { sdk } from '@farcaster/miniapp-sdk';
 
 import { createWeb3Modal } from "@web3modal/wagmi/react";
 import { defaultWagmiConfig } from "@web3modal/wagmi/react/config";
@@ -86,6 +85,9 @@ createWeb3Modal({
 
 const queryClient = new QueryClient();
 
+// Declare the miniapp global variable provided by the Farcaster SDK script.
+declare var miniapp: any;
+
 const PROFILE_NAMES = ['Profile 1', 'Profile 2', 'Profile 3', 'Profile 4'];
 
 const AppContent: React.FC = () => {
@@ -105,7 +107,12 @@ const AppContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    sdk.actions.ready();
+    // Signal to the Farcaster client that the app is ready to be displayed.
+    // This should be called after the app has loaded and is interactive.
+    // We check for `miniapp` to ensure the SDK script has loaded.
+    if (typeof miniapp !== 'undefined' && miniapp.sdk) {
+      miniapp.sdk.actions.ready();
+    }
   }, []);
 
   useEffect(() => {

@@ -4,16 +4,8 @@ import type { Abi } from 'viem';
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      // FIX: Add type declaration for the 'w3m-button' custom element from Web3Modal.
-      // This is necessary for TypeScript to recognize it within JSX.
-      // FIX: Replaced `any` with a specific type to resolve conflict with library types.
-      'w3m-button': {
-        label?: string;
-        size?: 'sm' | 'md';
-        loadingLabel?: string;
-        disabled?: boolean;
-        balance?: 'show' | 'hide';
-      };
+      // FIX: Removed manual 'w3m-button' declaration. The type is provided by the
+      // @web3modal library, and the local declaration was causing a conflict.
     }
   }
 
