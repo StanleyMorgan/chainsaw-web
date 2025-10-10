@@ -9,14 +9,14 @@
   },
   "miniapp": {
     "version": "1",
-    "name": "Example Mini App",
-    "homeUrl": "https://ex.co",
-    "iconUrl": "https://ex.co/i.png",
+    "name": "Chainsaw",
+    "homeUrl": "https://chainsaw-web.vercel.app/",
+    "iconUrl": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png",
     "splashImageUrl": "https://ex.co/l.png",
     "splashBackgroundColor": "#000000",
     "webhookUrl": "https://ex.co/api/webhook",
     "subtitle": "Fast, fun, social",
-    "description": "A fast, fun way to challenge friends in real time.",
+    "description": "A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.",
     "screenshotUrls": [
       "https://ex.co/s1.png",
       "https://ex.co/s2.png",
@@ -26,7 +26,7 @@
     "tags": ["example", "miniapp", "baseapp"],
     "heroImageUrl": "https://ex.co/og.png",
     "tagline": "Play instantly",
-    "ogTitle": "Example Mini App",
+    "ogTitle": "Chainsaw",
     "ogDescription": "Challenge friends in real time.",
     "ogImageUrl": "https://ex.co/og.png",
     "noindex": true
