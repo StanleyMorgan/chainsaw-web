@@ -25,7 +25,7 @@
     "heroImageUrl": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png",
     "tagline": "Play instantly",
     "ogTitle": "Chainsaw",
-    "ogDescription": "A web application to interact with smart contracts on different chains via a user-configured interface.",
+    "ogDescription": "MiniApp to interact with smart contracts on different chains via a user-configured interface.",
     "ogImageUrl": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png",
     "noindex": true
   }
