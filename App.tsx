@@ -4,6 +4,7 @@ import { MainView } from './components/MainView';
 import { SettingsView } from './components/SettingsView';
 import { Notification, NotificationData } from './components/Notification';
 import type { Settings, VisibleButtons, ProfileVisibility } from './types';
+import { sdk } from '@farcaster/miniapp-sdk';
 
 import { createWeb3Modal } from "@web3modal/wagmi/react";
 import { defaultWagmiConfig } from "@web3modal/wagmi/react/config";
@@ -101,6 +102,10 @@ const AppContent: React.FC = () => {
   const showNotification = useCallback((message: string, type: NotificationData['type'], duration: number = 5000) => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), duration);
+  }, []);
+
+  useEffect(() => {
+    sdk.actions.ready();
   }, []);
 
   useEffect(() => {

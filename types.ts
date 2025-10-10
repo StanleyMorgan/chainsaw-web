@@ -6,7 +6,14 @@ declare global {
     interface IntrinsicElements {
       // FIX: Add type declaration for the 'w3m-button' custom element from Web3Modal.
       // This is necessary for TypeScript to recognize it within JSX.
-      'w3m-button': any;
+      // FIX: Replaced `any` with a specific type to resolve conflict with library types.
+      'w3m-button': {
+        label?: string;
+        size?: 'sm' | 'md';
+        loadingLabel?: string;
+        disabled?: boolean;
+        balance?: 'show' | 'hide';
+      };
     }
   }
 
