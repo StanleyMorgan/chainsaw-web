@@ -12,23 +12,21 @@
     "name": "Chainsaw",
     "homeUrl": "https://chainsaw-web.vercel.app/",
     "iconUrl": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png",
-    "splashImageUrl": "https://ex.co/l.png",
+    "splashImageUrl": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png",
     "splashBackgroundColor": "#000000",
     "webhookUrl": "https://ex.co/api/webhook",
     "subtitle": "Fast, fun, social",
-    "description": "A web application to interact with smart contracts on different chains via a user-configured interface. Connect your wallet, configure your buttons, and execute transactions with ease.",
+    "description": "A web application to interact with smart contracts on different chains via a user-configured interface.",
     "screenshotUrls": [
-      "https://ex.co/s1.png",
-      "https://ex.co/s2.png",
-      "https://ex.co/s3.png"
+      "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png"
     ],
     "primaryCategory": "social",
-    "tags": ["example", "miniapp", "baseapp"],
-    "heroImageUrl": "https://ex.co/og.png",
+    "tags": ["chainsaw", "miniapp", "baseapp"],
+    "heroImageUrl": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png",
     "tagline": "Play instantly",
     "ogTitle": "Chainsaw",
-    "ogDescription": "Challenge friends in real time.",
-    "ogImageUrl": "https://ex.co/og.png",
+    "ogDescription": "A web application to interact with smart contracts on different chains via a user-configured interface.",
+    "ogImageUrl": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png",
     "noindex": true
   }
 }
