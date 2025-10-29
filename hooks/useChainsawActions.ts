@@ -1,9 +1,20 @@
 import { useCallback } from 'react';
 import { usePublicClient, useWalletClient, useAccount, useSwitchChain } from 'wagmi';
 import { parseEther, formatUnits, isAddress } from 'viem';
-import type { Abi } from 'viem';
+import type { Abi, Chain } from 'viem';
 import type { ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from '../components/Notification';
+import * as allChains from '@reown/appkit/networks';
+
+// Create a lookup map for all known chains by their ID for efficient access.
+// FIX: The original type predicate `(c): c is Chain` caused a complex type error because `Object.values(allChains)`
+// includes not only Chain objects but also other exports like arrays of chains. A standard filter followed by a
+// type assertion `as Chain[]` is a safer way to achieve the desired type narrowing, resolving all related errors.
+const chainsById: Record<number, Chain> = Object.fromEntries(
+    (Object.values(allChains)
+        .filter((c) => typeof c === 'object' && c !== null && 'id' in c) as Chain[])
+        .map(chain => [chain.id, chain])
+);
 
 export const useChainsawActions = (showNotification: (message: string, type: NotificationData['type'], duration?: number) => void) => {
     const publicClient = usePublicClient();
@@ -11,53 +22,55 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
     const { chain } = useAccount();
     const { switchChainAsync } = useSwitchChain();
 
-    const switchNetworkIfNeeded = useCallback(async (config: ButtonConfig) => {
+    const switchNetworkIfNeeded = useCallback(async (config: ButtonConfig): Promise<Chain> => {
         const targetChainId = Number(config.id);
         if (isNaN(targetChainId)) {
             throw new Error('Invalid Chain ID in button config.');
         }
 
+        // Find a known chain or construct a custom chain object from the button config.
+        let targetChain: Chain | undefined = chainsById[targetChainId];
+        if (!targetChain) {
+            if (config.chainName && config.rpcUrls && config.rpcUrls.length > 0 && config.nativeCurrency) {
+                targetChain = {
+                    id: targetChainId,
+                    name: config.chainName,
+                    nativeCurrency: config.nativeCurrency,
+                    rpcUrls: {
+                        default: { http: config.rpcUrls },
+                        public: { http: config.rpcUrls },
+                    },
+                    blockExplorers: config.blockExplorerUrls && config.blockExplorerUrls.length > 0 ? {
+                        default: { name: `${config.chainName} Explorer`, url: config.blockExplorerUrls[0] },
+                    } : undefined,
+                } as const satisfies Chain;
+            } else {
+                throw new Error(`Chain ID ${targetChainId} is not a known network, and no custom configuration was provided in the button.`);
+            }
+        }
+
         if (chain?.id === targetChainId) {
-            return; // Already on the correct network
+            return targetChain; // Already on the correct network
         }
 
         try {
             await switchChainAsync({ chainId: targetChainId });
         } catch (e: any) {
-            // Error code 4902 indicates the chain is not added to the wallet
             if (e.code === 4902 || e.cause?.code === 4902) {
-                if (config.chainName && config.rpcUrls && config.rpcUrls.length > 0 && config.nativeCurrency) {
-                    try {
-                        // FIX: The `addChain` method expects a `chain` object parameter instead of top-level properties.
-                        // Wrapped the network configuration in a `chain` object to match the `AddChainParameters` type.
-                        await walletClient?.addChain({
-                            chain: {
-                                id: targetChainId,
-                                name: config.chainName,
-                                nativeCurrency: config.nativeCurrency,
-                                rpcUrls: {
-                                    default: { http: config.rpcUrls },
-                                    public: { http: config.rpcUrls },
-                                },
-                                blockExplorers: config.blockExplorerUrls && config.blockExplorerUrls.length > 0 ? {
-                                    default: { name: `${config.chainName} Explorer`, url: config.blockExplorerUrls[0] },
-                                } : undefined,
-                            }
-                        });
-                        showNotification(`Network "${config.chainName}" added! Please try the action again.`, 'success');
-                    } catch (addError: any) {
-                        showNotification(`Failed to add network: ${addError.shortMessage || addError.message}`, 'error');
-                        throw addError;
-                    }
-                } else {
-                    showNotification(`Network not found in your wallet. Please add it manually or configure it in the button settings.`, 'error');
-                    throw new Error(`Chain ID ${targetChainId} not configured in wallet.`);
+                try {
+                    await walletClient?.addChain({ chain: targetChain });
+                    // After successfully adding the chain, try to switch to it again.
+                    await switchChainAsync({ chainId: targetChainId });
+                } catch (addOrSwitchError: any) {
+                    showNotification(`Failed to add or switch network: ${addOrSwitchError.shortMessage || addOrSwitchError.message}`, 'error');
+                    throw addOrSwitchError;
                 }
             } else {
                  showNotification(`Failed to switch network: ${e.shortMessage || e.message}`, 'error');
+                 throw e;
             }
-            throw e; // re-throw to stop execution
         }
+        return targetChain;
     }, [chain, switchChainAsync, showNotification, walletClient]);
 
     const resolveReadCalls = useCallback(async (args: any[], parentConfig: ButtonConfig): Promise<any[]> => {
@@ -69,13 +82,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
                     throw new Error('Public client not available for read call.');
                 }
                 
-                if (parentConfig.id) {
-                    await switchNetworkIfNeeded(parentConfig);
-                }
-
                 try {
-                    // FIX: The type signature for readContract seems to require `authorizationList`.
-                    // Casting to `any` to bypass what appears to be a type definition issue.
                     const data = await publicClient.readContract({
                         address: (readCall.address || parentConfig.address) as `0x${string}`,
                         abi: readCall.abi as Abi,
@@ -92,7 +99,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
             }
         }
         return resolvedArgs;
-    }, [publicClient, switchNetworkIfNeeded]);
+    }, [publicClient]);
 
     const getExecutionConfig = useCallback((config: ButtonConfig): ButtonConfig => {
         return { ...config };
@@ -105,14 +112,9 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
         }
 
         try {
-            if (config.id) {
-                await switchNetworkIfNeeded(config);
-            }
-
+            await switchNetworkIfNeeded(config);
             const resolvedArgs = args ? await resolveReadCalls(args, config) : [];
 
-            // FIX: The type signature for readContract seems to require `authorizationList`.
-            // Casting to `any` to bypass what appears to be a type definition issue.
             const result = await publicClient.readContract({
                 address: config.address as `0x${string}`,
                 abi: config.abi as Abi,
@@ -144,9 +146,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
         }
         
         try {
-            if (config.id) {
-                await switchNetworkIfNeeded(config);
-            }
+            const targetChain = await switchNetworkIfNeeded(config);
             
             const finalArgs = dynamicArgs || config.args || [];
             const isDeploy = !config.address || config.address === '';
@@ -159,21 +159,18 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
                     if (!config.data) {
                         throw new Error("Deployment requires bytecode in the 'data' field.");
                     }
-                    // FIX: Added the `account` and `chain` properties, which are required by `deployContract`.
                     hash = await walletClient.deployContract({
                         abi: config.abi as Abi,
                         bytecode: config.data as `0x${string}`,
                         args: resolvedArgs,
                         value: parseEther(config.value || '0'),
                         account: walletClient.account,
-                        chain: walletClient.chain,
+                        chain: targetChain,
                     });
                 } else {
                     if (!isAddress(config.address)) {
                         throw new Error(`Invalid contract address: ${config.address}`);
                     }
-
-                    // FIX: Added `account` and `chain` to the request to satisfy the type requirements from wagmi/viem.
                     const request = {
                         address: config.address as `0x${string}`,
                         abi: config.abi as Abi,
@@ -182,7 +179,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
                         value: parseEther(config.value || '0'),
                         gas: config.gas ? BigInt(config.gas) : undefined,
                         account: walletClient.account,
-                        chain: walletClient.chain,
+                        chain: targetChain,
                     };
                     hash = await walletClient.writeContract(request);
                 }
@@ -190,12 +187,13 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
                 if (!isAddress(config.address)) {
                     throw new Error(`Invalid contract address: ${config.address}`);
                 }
-                // FIX: Casting to `any` to bypass a type error where `kzg` was unexpectedly required.
                 hash = await walletClient.sendTransaction({
                     to: config.address as `0x${string}`,
                     value: parseEther(config.value || '0'),
                     data: config.data as `0x${string}`,
                     gas: config.gas ? BigInt(config.gas) : undefined,
+                    account: walletClient.account,
+                    chain: targetChain,
                 } as any);
             } else {
                 throw new Error("Transaction configuration is invalid. Must provide ABI or data.");
