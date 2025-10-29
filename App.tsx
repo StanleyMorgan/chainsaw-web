@@ -8,24 +8,7 @@ import type { Settings, VisibleButtons, ProfileVisibility } from './types';
 import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { WagmiProvider, useAccount } from 'wagmi';
-import { 
-  mainnet,
-  base,
-  celo,
-  ink,
-  linea,
-  lisk,
-  mode,
-  monadTestnet,
-  optimism,
-  plume,
-  sei,
-  somniaTestnet,
-  soneium,
-  superseed,
-  unichain,
-  worldchain
-} from '@reown/appkit/networks';
+import * as allChains from '@reown/appkit/networks';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { QueryClient } from '@tanstack/query-core';
 
@@ -40,27 +23,23 @@ const metadata = {
   icons: ['https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png']
 };
 
-// FIX: The `createAppKit` function expects a non-empty array for networks. By asserting the type
-// to `[any, ...any[]]`, we satisfy the TypeScript compiler that the array has at least one element,
-// ensuring it conforms to the required `[AppKitNetwork, ...AppKitNetwork[]]` type.
-const networks = [
-  mainnet,
-  base,
-  celo,
-  ink,
-  linea,
-  lisk,
-  mode,
-  monadTestnet,
-  optimism,
-  plume,
-  sei,
-  somniaTestnet,
-  soneium,
-  superseed,
-  unichain,
-  worldchain
-] as [any, ...any[]];
+// Programmatically create a comprehensive list of all available networks
+// This prevents the "unsupported network" modal from appearing on most exotic chains.
+const allKnownNetworks = Object.values(allChains).filter(
+  // FIX: Use an intersection type in the type predicate to make it assignable
+  // to the parameter's inferred type, resolving the TypeScript error. Also,
+  // add a check for the 'name' property to match the predicate's claims.
+  (chain): chain is typeof chain & { id: number; name: string } =>
+    typeof chain === 'object' &&
+    chain !== null &&
+    'id' in chain &&
+    typeof (chain as any).id === 'number' &&
+    'name' in chain &&
+    typeof (chain as any).name === 'string'
+);
+
+// Fallback to mainnet if the filtering somehow fails, and ensure the type is correct for createAppKit.
+const networks = (allKnownNetworks.length > 0 ? allKnownNetworks : [allChains.mainnet]) as [any, ...any[]];
 
 
 const wagmiAdapter = new WagmiAdapter({
