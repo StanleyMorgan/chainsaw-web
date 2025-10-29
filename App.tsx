@@ -47,6 +47,7 @@ const wagmiAdapter = new WagmiAdapter({
   projectId
 });
 
+// FIX: Add the missing 'networks' property to the 'createAppKit' call to satisfy the 'CreateAppKit' type, resolving the TypeScript error.
 createAppKit({
  adapters: [wagmiAdapter],
  networks,
