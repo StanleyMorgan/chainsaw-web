@@ -7,7 +7,7 @@ import type { Settings, VisibleButtons, ProfileVisibility } from './types';
 
 import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
-import { WagmiProvider, useAccount } from 'wagmi';
+import { WagmiProvider, useAccount, type Chain } from 'wagmi';
 import { 
   mainnet,
   base,
@@ -41,8 +41,11 @@ const metadata = {
   icons: ['https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png']
 };
 
-// FIX: Removed `as const` from the `chains` array definition. The `createAppKit` function expects a mutable array for its `networks` property, and `as const` creates a readonly tuple, which was causing a type error.
-const chains = [
+// FIX: Replaced the specific `typeof mainnet` with the generic `Chain` type from `wagmi`. This resolves an error where TypeScript enforced `mainnet`'s literal types (e.g., block explorer name) onto all other networks, causing a type mismatch.
+type AppKitNetwork = Chain;
+
+// FIX: Explicitly typed the `chains` array as a non-empty array (`[AppKitNetwork, ...AppKitNetwork[]]`). This resolves a TypeScript error where the inferred array type was not assignable to the required non-empty array type for the `networks` property in `createAppKit`.
+const chains: [AppKitNetwork, ...AppKitNetwork[]] = [
   mainnet,
   base,
   celo,
