@@ -220,7 +220,7 @@ export const MainView: React.FC<MainViewProps> = ({
               Your powerful tool for interacting with smart contracts. Connect your wallet to get started.
             </p>
             <div className="inline-block">
-              <w3m-button />
+              <appkit-button />
             </div>
           </div>
         )}

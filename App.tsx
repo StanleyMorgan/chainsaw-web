@@ -5,8 +5,8 @@ import { SettingsView } from './components/SettingsView';
 import { Notification, NotificationData } from './components/Notification';
 import type { Settings, VisibleButtons, ProfileVisibility } from './types';
 
-import { createWeb3Modal } from "@web3modal/wagmi/react";
-import { defaultWagmiConfig } from "@web3modal/wagmi/react/config";
+import { createAppKit } from '@reown/appkit/react';
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { WagmiProvider, useAccount } from 'wagmi';
 import { 
   mainnet,
@@ -25,12 +25,11 @@ import {
   superseed,
   unichain,
   worldchain
-} from 'viem/chains';
+} from '@reown/appkit/networks';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { QueryClient } from '@tanstack/query-core';
 
 // 1. Get projectId from https://cloud.walletconnect.com
-// FIX: Removed `as any` type assertion now that `import.meta.env` is properly typed.
 const projectId = import.meta.env.VITE_PROJECT_ID;
 
 // 2. Create wagmiConfig
@@ -41,7 +40,8 @@ const metadata = {
   icons: ['https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png']
 };
 
-const chains = [
+// FIX: Add `as const` to satisfy the non-empty array type requirement for the networks property.
+const networks = [
   mainnet,
   base,
   celo,
@@ -60,27 +60,19 @@ const chains = [
   worldchain
 ] as const;
 
-const config = defaultWagmiConfig({
-  chains,
-  projectId,
-  metadata,
-  // FIX: Disabled email authentication as it appears to require a SIWE configuration which is not provided, causing a type error.
-  auth: {
-    email: false,
-    socials: [],
-    showWallets: true,
-  },
-  ssr: false, // If your dApp uses server side rendering (SSR)
+const wagmiAdapter = new WagmiAdapter({
+  networks,
+  projectId
 });
 
-// 3. Create modal
-// FIX: Added `enableEIP6963` to satisfy the options type for `createWeb3Modal`.
-createWeb3Modal({
-  wagmiConfig: config,
-  projectId,
-  allowUnsupportedChain: true,
-  enableAnalytics: true, // Optional - defaults to your Cloud configuration
-  enableEIP6963: true,
+createAppKit({
+ adapters: [wagmiAdapter],
+ networks,
+ metadata: metadata,
+ projectId,
+ features: {
+   analytics: true,
+ }
 });
 
 const queryClient = new QueryClient();
@@ -302,7 +294,7 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <AppContent />
       </QueryClientProvider>
