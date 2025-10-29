@@ -1,46 +1,64 @@
 import { useCallback } from 'react';
-// FIX: Imported useSwitchChain from wagmi to handle network switching.
 import { usePublicClient, useWalletClient, useAccount, useSwitchChain } from 'wagmi';
 import { parseEther, formatUnits, isAddress } from 'viem';
 import type { Abi } from 'viem';
 import type { ButtonConfig, ReadCall } from '../types';
 import type { NotificationData } from '../components/Notification';
-// import { useAppKit } from '@reown/appkit/react';
-import * as allChains from '@reown/appkit/networks';
-
-// FIX: Filtered chain objects to ensure they have an 'id' property before creating the map.
-// This prevents errors from other exports in the networks module.
-const chainsById: Record<number, any> = Object.fromEntries(
-    Object.values(allChains)
-        .filter((c): c is { id: number } => typeof c === 'object' && c !== null && 'id' in c)
-        .map(chain => [chain.id, chain])
-);
 
 export const useChainsawActions = (showNotification: (message: string, type: NotificationData['type'], duration?: number) => void) => {
     const publicClient = usePublicClient();
     const { data: walletClient } = useWalletClient();
     const { chain } = useAccount();
-    // const appKit = useAppKit();
-    // FIX: Replaced useAppKit with useSwitchChain for network switching functionality.
     const { switchChainAsync } = useSwitchChain();
 
-    const switchNetworkIfNeeded = useCallback(async (targetChainId: number) => {
-        if (chain?.id !== targetChainId) {
-            const targetChain = chainsById[targetChainId];
-            if (!targetChain) {
-                showNotification(`Chain with ID ${targetChainId} is not configured in the app.`, 'error');
-                throw new Error(`Unsupported chain ID: ${targetChainId}`);
-            }
-            try {
-                // FIX: Switched to wagmi's switchChainAsync to change networks.
-                await switchChainAsync({ chainId: targetChainId });
-            } catch (e) {
-                showNotification(`Failed to switch network. Please do it manually in your wallet.`, 'error');
-                throw e; // re-throw to stop execution
-            }
+    const switchNetworkIfNeeded = useCallback(async (config: ButtonConfig) => {
+        const targetChainId = Number(config.id);
+        if (isNaN(targetChainId)) {
+            throw new Error('Invalid Chain ID in button config.');
         }
-    // FIX: Updated dependency array for useCallback.
-    }, [chain, switchChainAsync, showNotification]);
+
+        if (chain?.id === targetChainId) {
+            return; // Already on the correct network
+        }
+
+        try {
+            await switchChainAsync({ chainId: targetChainId });
+        } catch (e: any) {
+            // Error code 4902 indicates the chain is not added to the wallet
+            if (e.code === 4902 || e.cause?.code === 4902) {
+                if (config.chainName && config.rpcUrls && config.rpcUrls.length > 0 && config.nativeCurrency) {
+                    try {
+                        // FIX: The `addChain` method expects a `chain` object parameter instead of top-level properties.
+                        // Wrapped the network configuration in a `chain` object to match the `AddChainParameters` type.
+                        await walletClient?.addChain({
+                            chain: {
+                                id: targetChainId,
+                                name: config.chainName,
+                                nativeCurrency: config.nativeCurrency,
+                                rpcUrls: {
+                                    default: { http: config.rpcUrls },
+                                    public: { http: config.rpcUrls },
+                                },
+                                blockExplorers: config.blockExplorerUrls && config.blockExplorerUrls.length > 0 ? {
+                                    default: { name: `${config.chainName} Explorer`, url: config.blockExplorerUrls[0] },
+                                } : undefined,
+                            }
+                        });
+                        showNotification(`Network "${config.chainName}" added! Please try the action again.`, 'success');
+                    } catch (addError: any) {
+                        showNotification(`Failed to add network: ${addError.shortMessage || addError.message}`, 'error');
+                        throw addError;
+                    }
+                } else {
+                    showNotification(`Network not found in your wallet. Please add it manually or configure it in the button settings.`, 'error');
+                    throw new Error(`Chain ID ${targetChainId} not configured in wallet.`);
+                }
+            } else {
+                 showNotification(`Failed to switch network: ${e.shortMessage || e.message}`, 'error');
+            }
+            throw e; // re-throw to stop execution
+        }
+    }, [chain, switchChainAsync, showNotification, walletClient]);
 
     const resolveReadCalls = useCallback(async (args: any[], parentConfig: ButtonConfig): Promise<any[]> => {
         const resolvedArgs = [];
@@ -52,7 +70,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
                 }
                 
                 if (parentConfig.id) {
-                    await switchNetworkIfNeeded(Number(parentConfig.id));
+                    await switchNetworkIfNeeded(parentConfig);
                 }
 
                 try {
@@ -88,7 +106,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
 
         try {
             if (config.id) {
-                await switchNetworkIfNeeded(Number(config.id));
+                await switchNetworkIfNeeded(config);
             }
 
             const resolvedArgs = args ? await resolveReadCalls(args, config) : [];
@@ -127,7 +145,7 @@ export const useChainsawActions = (showNotification: (message: string, type: Not
         
         try {
             if (config.id) {
-                await switchNetworkIfNeeded(Number(config.id));
+                await switchNetworkIfNeeded(config);
             }
             
             const finalArgs = dynamicArgs || config.args || [];
