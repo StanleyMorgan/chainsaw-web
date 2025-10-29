@@ -4,9 +4,9 @@ import type { Abi } from 'viem';
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      // FIX: Removed the 'w3m-button' type declaration. It was conflicting with the type provided by the
-      // '@web3modal/wagmi/react' package, causing a "Subsequent property declarations must have the same type" error.
-      // The library's built-in type is sufficient for the component's usage within this application.
+      // FIX: Re-added 'w3m-button' to fix a JSX type error. The component is used in MainView.tsx,
+      // and this declaration is necessary for TypeScript to recognize it as a valid JSX element.
+      'appkit-button': any;
     }
   }
 
