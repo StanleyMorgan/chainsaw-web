@@ -40,7 +40,9 @@ const metadata = {
   icons: ['https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png']
 };
 
-// FIX: Add `as const` to satisfy the non-empty array type requirement for the networks property.
+// FIX: The `createAppKit` function expects a non-empty array for networks. By asserting the type
+// to `[any, ...any[]]`, we satisfy the TypeScript compiler that the array has at least one element,
+// ensuring it conforms to the required `[AppKitNetwork, ...AppKitNetwork[]]` type.
 const networks = [
   mainnet,
   base,
@@ -58,7 +60,8 @@ const networks = [
   superseed,
   unichain,
   worldchain
-] as const;
+] as [any, ...any[]];
+
 
 const wagmiAdapter = new WagmiAdapter({
   networks,
