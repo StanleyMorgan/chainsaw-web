@@ -5,14 +5,32 @@ import { SettingsView } from './components/SettingsView';
 import { Notification, NotificationData } from './components/Notification';
 import type { Settings, VisibleButtons, ProfileVisibility } from './types';
 
-import { createAppKit } from '@reown/appkit/react';
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
+import { createWeb3Modal } from "@web3modal/wagmi/react";
+import { defaultWagmiConfig } from "@web3modal/wagmi/react/config";
 import { WagmiProvider, useAccount } from 'wagmi';
-import * as allChains from '@reown/appkit/networks';
+import { 
+  mainnet,
+  base,
+  celo,
+  ink,
+  linea,
+  lisk,
+  mode,
+  monadTestnet,
+  optimism,
+  plume,
+  sei,
+  somniaTestnet,
+  soneium,
+  superseed,
+  unichain,
+  worldchain
+} from 'viem/chains';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { QueryClient } from '@tanstack/query-core';
 
 // 1. Get projectId from https://cloud.walletconnect.com
+// FIX: Removed `as any` type assertion now that `import.meta.env` is properly typed.
 const projectId = import.meta.env.VITE_PROJECT_ID;
 
 // 2. Create wagmiConfig
@@ -23,39 +41,46 @@ const metadata = {
   icons: ['https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png']
 };
 
-// Programmatically create a comprehensive list of all available networks
-// This prevents the "unsupported network" modal from appearing on most exotic chains.
-const allKnownNetworks = Object.values(allChains).filter(
-  // FIX: Use an intersection type in the type predicate to make it assignable
-  // to the parameter's inferred type, resolving the TypeScript error. Also,
-  // add a check for the 'name' property to match the predicate's claims.
-  (chain): chain is typeof chain & { id: number; name: string } =>
-    typeof chain === 'object' &&
-    chain !== null &&
-    'id' in chain &&
-    typeof (chain as any).id === 'number' &&
-    'name' in chain &&
-    typeof (chain as any).name === 'string'
-);
+const chains = [
+  mainnet,
+  base,
+  celo,
+  ink,
+  linea,
+  lisk,
+  mode,
+  monadTestnet,
+  optimism,
+  plume,
+  sei,
+  somniaTestnet,
+  soneium,
+  superseed,
+  unichain,
+  worldchain
+] as const;
 
-// Fallback to mainnet if the filtering somehow fails, and ensure the type is correct for createAppKit.
-const networks = (allKnownNetworks.length > 0 ? allKnownNetworks : [allChains.mainnet]) as [any, ...any[]];
-
-
-const wagmiAdapter = new WagmiAdapter({
-  networks,
-  projectId
+const config = defaultWagmiConfig({
+  chains,
+  projectId,
+  metadata,
+  // FIX: Disabled email authentication as it appears to require a SIWE configuration which is not provided, causing a type error.
+  auth: {
+    email: false,
+    socials: [],
+    showWallets: true,
+  },
+  ssr: false, // If your dApp uses server side rendering (SSR)
 });
 
-// FIX: Add the missing 'networks' property to the 'createAppKit' call to satisfy the 'CreateAppKit' type, resolving the TypeScript error.
-createAppKit({
- adapters: [wagmiAdapter],
- networks,
- metadata: metadata,
- projectId,
- features: {
-   analytics: true,
- }
+// 3. Create modal
+// FIX: Added `enableEIP6963` to satisfy the options type for `createWeb3Modal`.
+createWeb3Modal({
+  wagmiConfig: config,
+  projectId,
+  allowUnsupportedChain: true,
+  enableAnalytics: true, // Optional - defaults to your Cloud configuration
+  enableEIP6963: true,
 });
 
 const queryClient = new QueryClient();
@@ -277,7 +302,7 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
+    <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <AppContent />
       </QueryClientProvider>
