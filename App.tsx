@@ -7,7 +7,8 @@ import type { Settings, VisibleButtons, ProfileVisibility } from './types';
 
 import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
-import { WagmiProvider, useAccount, type Chain } from 'wagmi';
+import { WagmiProvider, useAccount } from 'wagmi';
+import type { Chain } from 'viem';
 import { 
   mainnet,
   base,
