@@ -1,13 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
-import { useAppKit } from '@reown/appkit/react';
+import { useWeb3Modal } from '@web3modal/wagmi/react';
 import { PowerIcon, DisconnectIcon, ChevronDownIcon } from './icons';
 
 export const CustomConnectButton: React.FC = () => {
     const { address, isConnected } = useAccount();
     const { disconnect } = useDisconnect();
-    const { open } = useAppKit();
+    const { open } = useWeb3Modal();
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     

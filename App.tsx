@@ -5,10 +5,9 @@ import { SettingsView } from './components/SettingsView';
 import { Notification, NotificationData } from './components/Notification';
 import type { Settings, VisibleButtons, ProfileVisibility } from './types';
 
-import { createAppKit } from '@reown/appkit/react';
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
+import { createWeb3Modal } from "@web3modal/wagmi/react";
+import { defaultWagmiConfig } from "@web3modal/wagmi/react/config";
 import { WagmiProvider, useAccount } from 'wagmi';
-import type { Chain } from 'viem';
 import { 
   mainnet,
   base,
@@ -26,7 +25,7 @@ import {
   superseed,
   unichain,
   worldchain
-} from '@reown/appkit/networks';
+} from 'viem/chains';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { QueryClient } from '@tanstack/query-core';
 
@@ -42,11 +41,7 @@ const metadata = {
   icons: ['https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/icons/icon128.png']
 };
 
-// FIX: Replaced the specific `typeof mainnet` with the generic `Chain` type from `wagmi`. This resolves an error where TypeScript enforced `mainnet`'s literal types (e.g., block explorer name) onto all other networks, causing a type mismatch.
-type AppKitNetwork = Chain;
-
-// FIX: Explicitly typed the `chains` array as a non-empty array (`[AppKitNetwork, ...AppKitNetwork[]]`). This resolves a TypeScript error where the inferred array type was not assignable to the required non-empty array type for the `networks` property in `createAppKit`.
-const chains: [AppKitNetwork, ...AppKitNetwork[]] = [
+const chains = [
   mainnet,
   base,
   celo,
@@ -63,23 +58,29 @@ const chains: [AppKitNetwork, ...AppKitNetwork[]] = [
   superseed,
   unichain,
   worldchain
-];
+] as const;
 
-// Create the Wagmi adapter
-const wagmiAdapter = new WagmiAdapter({
-  networks: chains,
+const config = defaultWagmiConfig({
+  chains,
   projectId,
+  metadata,
+  // FIX: Disabled email authentication as it appears to require a SIWE configuration which is not provided, causing a type error.
+  auth: {
+    email: false,
+    socials: [],
+    showWallets: true,
+  },
+  ssr: false, // If your dApp uses server side rendering (SSR)
 });
 
 // 3. Create modal
-createAppKit({
-  adapters: [wagmiAdapter],
-  networks: chains,
-  metadata,
+// FIX: Added `enableEIP6963` to satisfy the options type for `createWeb3Modal`.
+createWeb3Modal({
+  wagmiConfig: config,
   projectId,
-  features: {
-    analytics: true,
-  }
+  allowUnsupportedChain: true,
+  enableAnalytics: true, // Optional - defaults to your Cloud configuration
+  enableEIP6963: true,
 });
 
 const queryClient = new QueryClient();
@@ -301,7 +302,7 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
+    <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <AppContent />
       </QueryClientProvider>

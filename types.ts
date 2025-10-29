@@ -6,7 +6,7 @@ declare global {
     interface IntrinsicElements {
       // FIX: Re-added 'w3m-button' to fix a JSX type error. The component is used in MainView.tsx,
       // and this declaration is necessary for TypeScript to recognize it as a valid JSX element.
-      'appkit-button': any;
+      'w3m-button': any;
     }
   }
 
