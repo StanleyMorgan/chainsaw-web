@@ -110,7 +110,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleSaveConfiguration = () => {
     try {
-      const newSettings = JSON.parse(jsonText);
+      const textToParse = jsonText.trim() === '' ? '{}' : jsonText;
+      const newSettings = JSON.parse(textToParse);
       if (typeof newSettings !== 'object' || newSettings === null || Array.isArray(newSettings)) {
         throw new Error("Invalid JSON format. Must be an object.");
       }

@@ -1,11 +1,9 @@
 import type { Abi } from 'viem';
 
-// FIX: Add global declarations for custom JSX elements and Vite environment variables.
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      // FIX: Re-added 'w3m-button' to fix a JSX type error. The component is used in MainView.tsx,
-      // and this declaration is necessary for TypeScript to recognize it as a valid JSX element.
+      // FIX: Add type definition for the 'w3m-button' custom element to fix JSX type error.
       'w3m-button': any;
     }
   }
