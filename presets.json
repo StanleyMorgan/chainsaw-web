@@ -16,6 +16,10 @@
     "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/deploy.json"
   },
   {
+    "name": "NFT",
+    "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/nft.json"
+  },  
+  {
     "name": "Uniswap",
     "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/uniswap.json"
   }
