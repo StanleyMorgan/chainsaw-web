@@ -16,8 +16,8 @@
     "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/deploy.json"
   },
   {
-    "name": "Tokens",
-    "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/tokens.json"
+    "name": "ERC20",
+    "url": "https://raw.githubusercontent.com/StanleyMorgan/Chainsaw-config/main/presets/erc20.json"
   }, 
   {
     "name": "NFT",
